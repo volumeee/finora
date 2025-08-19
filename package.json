@@ -1,0 +1,10 @@
+{
+  "name": "finora-backend-d2i8a5482vjt19ufddlg",
+  "version": "1.0.0",
+  "type": "module",
+  "packageManager": "bun",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ]
+}
