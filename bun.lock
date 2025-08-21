@@ -9,7 +9,7 @@
       "version": "1.0.0",
       "dependencies": {
         "bcrypt": "^5.1.1",
-        "encore.dev": "^1.48.13",
+        "encore.dev": "^1.49.0",
       },
       "devDependencies": {
         "typescript": "^5.8.3",
@@ -398,7 +398,7 @@
 
     "emoji-regex": ["emoji-regex@8.0.0", "", {}, "sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A=="],
 
-    "encore.dev": ["encore.dev@1.48.13", "", {}, "sha512-Uc4Af4R7HIkA9LBzSJT1YeqtAy+nOJaEw7KTGuRDwxPUZdJ0N4fhd0sK8KXDM49bL98sEe397SH3kJDI3F04EA=="],
+    "encore.dev": ["encore.dev@1.49.0", "", {}, "sha512-jiL7DgokVuckJ6Q+lDXWF6Czvi61DS/CaJO6EZiYSL7FheSwxcgbCw8uAvt8KPx9xVWTMACX/bRYD4D9Tqb3/w=="],
 
     "enhanced-resolve": ["enhanced-resolve@5.18.3", "", { "dependencies": { "graceful-fs": "^4.2.4", "tapable": "^2.2.0" } }, "sha512-d4lC8xfavMeBjzGr2vECC3fsGXziXZQyJxD868h2M/mBI3PwAuODxAkLkq5HYuvrPYcUtiLzsTo8U3PgX3Ocww=="],
 
