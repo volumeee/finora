@@ -1,18 +1,24 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const { login } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -27,12 +33,13 @@ export default function LoginPage() {
         title: "Login berhasil",
         description: "Selamat datang kembali!",
       });
-      navigate('/dashboard');
+      navigate("/dashboard");
     } catch (error: unknown) {
-      console.error('Login error:', error);
+      console.error("Login error:", error);
       toast({
         title: "Login gagal",
-        description: error instanceof Error ? error.message : "Email atau password salah",
+        description:
+          error instanceof Error ? error.message : "Email atau password salah",
         variant: "destructive",
       });
     } finally {
@@ -43,14 +50,8 @@ export default function LoginPage() {
   return (
     <Card className="shadow-lg">
       <CardHeader className="text-center">
-        <div className="mb-4">
-          <h1 className="text-3xl font-bold text-gray-900">Finora</h1>
-          <p className="mt-2 text-sm text-gray-600">Kelola keuangan dengan mudah</p>
-        </div>
         <CardTitle className="text-2xl">Masuk</CardTitle>
-        <CardDescription>
-          Masuk ke akun Finora Anda
-        </CardDescription>
+        <CardDescription>Masuk ke akun Finora Anda</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -65,7 +66,7 @@ export default function LoginPage() {
               required
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
             <Input
@@ -86,14 +87,17 @@ export default function LoginPage() {
                 Memproses...
               </>
             ) : (
-              'Masuk'
+              "Masuk"
             )}
           </Button>
         </form>
 
         <div className="mt-6 text-center text-sm">
           <span className="text-gray-600">Belum punya akun? </span>
-          <Link to="/auth/register" className="text-blue-600 hover:underline font-medium">
+          <Link
+            to="/auth/register"
+            className="text-blue-600 hover:underline font-medium"
+          >
             Daftar sekarang
           </Link>
         </div>

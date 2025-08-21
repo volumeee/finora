@@ -1,40 +1,46 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
-    nama_lengkap: '',
-    email: '',
-    kata_sandi: '',
-    confirmPassword: '',
-    nama_tenant: '',
-    sub_domain: '',
-    no_telepon: ''
+    nama_lengkap: "",
+    email: "",
+    kata_sandi: "",
+    confirmPassword: "",
+    nama_tenant: "",
+    sub_domain: "",
+    no_telepon: "",
   });
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const { register } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (formData.kata_sandi !== formData.confirmPassword) {
       toast({
         title: "Password tidak cocok",
@@ -49,17 +55,20 @@ export default function RegisterPage() {
     try {
       const { confirmPassword, ...registerData } = formData;
       await register(registerData);
-      
+
       toast({
         title: "Registrasi berhasil",
         description: "Akun Anda telah dibuat!",
       });
-      navigate('/dashboard');
+      navigate("/dashboard");
     } catch (error: unknown) {
-      console.error('Registration error:', error);
+      console.error("Registration error:", error);
       toast({
         title: "Registrasi gagal",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan saat membuat akun",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat membuat akun",
         variant: "destructive",
       });
     } finally {
@@ -70,14 +79,8 @@ export default function RegisterPage() {
   return (
     <Card className="shadow-lg">
       <CardHeader className="text-center">
-        <div className="mb-4">
-          <h1 className="text-3xl font-bold text-gray-900">Finora</h1>
-          <p className="mt-2 text-sm text-gray-600">Kelola keuangan dengan mudah</p>
-        </div>
         <CardTitle className="text-2xl">Daftar</CardTitle>
-        <CardDescription>
-          Buat akun Finora baru
-        </CardDescription>
+        <CardDescription>Buat akun Finora baru</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -183,14 +186,17 @@ export default function RegisterPage() {
                 Memproses...
               </>
             ) : (
-              'Daftar'
+              "Daftar"
             )}
           </Button>
         </form>
 
         <div className="mt-6 text-center text-sm">
           <span className="text-gray-600">Sudah punya akun? </span>
-          <Link to="/auth/login" className="text-blue-600 hover:underline font-medium">
+          <Link
+            to="/auth/login"
+            className="text-blue-600 hover:underline font-medium"
+          >
             Masuk di sini
           </Link>
         </div>
