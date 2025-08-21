@@ -1,5 +1,6 @@
 import { api } from "encore.dev/api";
 import { transaksiDB } from "./db";
+import { updateBalance } from "../akun/update_balance";
 
 export type JenisTransaksi = "pengeluaran" | "pemasukan" | "transfer";
 
@@ -42,24 +43,42 @@ export interface Transaksi {
 export const create = api<CreateTransaksiRequest, Transaksi>(
   { expose: true, method: "POST", path: "/transaksi" },
   async (req) => {
+    // Validate required fields
+    if (!req.tenant_id || !req.akun_id || !req.jenis || !req.nominal || !req.tanggal_transaksi || !req.pengguna_id) {
+      throw new Error("Missing required fields");
+    }
+
+    // Validate jenis
+    if (!['pengeluaran', 'pemasukan', 'transfer'].includes(req.jenis)) {
+      throw new Error("Invalid transaction type");
+    }
+
+    // Validate nominal
+    if (req.nominal <= 0) {
+      throw new Error("Amount must be positive");
+    }
     // Start transaction
     const tx = await transaksiDB.begin();
-    
+
     try {
       // Convert to cents for database
       const nominalCents = Math.round(req.nominal * 100);
-      
+
       // Insert main transaction
       const transaksi = await tx.queryRow<Transaksi>`
         INSERT INTO transaksi (tenant_id, akun_id, kategori_id, jenis, nominal, mata_uang, tanggal_transaksi, catatan, pengguna_id)
-        VALUES (${req.tenant_id}, ${req.akun_id}, ${req.kategori_id}, ${req.jenis}, ${nominalCents}, ${req.mata_uang || 'IDR'}, ${req.tanggal_transaksi}, ${req.catatan}, ${req.pengguna_id})
+        VALUES (${req.tenant_id}, ${req.akun_id}, ${req.kategori_id}, ${
+        req.jenis
+      }, ${nominalCents}, ${req.mata_uang || "IDR"}, ${
+        req.tanggal_transaksi
+      }, ${req.catatan}, ${req.pengguna_id})
         RETURNING id, tenant_id, akun_id, kategori_id, jenis, nominal, mata_uang, tanggal_transaksi, catatan, pengguna_id, transaksi_berulang_id, dibuat_pada, diubah_pada
       `;
-      
+
       if (!transaksi) {
         throw new Error("Failed to create transaction");
       }
-      
+
       // Insert split categories if provided
       if (req.split_kategori && req.split_kategori.length > 0) {
         const splitKategori = [];
@@ -73,9 +92,24 @@ export const create = api<CreateTransaksiRequest, Transaksi>(
         }
         transaksi.split_kategori = splitKategori;
       }
-      
+
+      // Update account balance via akun service before commit
+      if (transaksi.jenis === "pemasukan") {
+        await updateBalance({
+          akun_id: req.akun_id,
+          amount: nominalCents,
+          operation: "add"
+        });
+      } else if (transaksi.jenis === "pengeluaran") {
+        await updateBalance({
+          akun_id: req.akun_id,
+          amount: nominalCents,
+          operation: "subtract"
+        });
+      }
+
       await tx.commit();
-      
+
       // Convert back to normal numbers
       return {
         ...transaksi,

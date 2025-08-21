@@ -1,7 +1,7 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create transaksi tables
+-- Create transaksi tabley
 CREATE TABLE transaksi (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE transaksi (
   kategori_id UUID,
   jenis VARCHAR(20) NOT NULL CHECK (jenis IN ('pengeluaran', 'pemasukan', 'transfer')),
   nominal BIGINT NOT NULL,
-  mata_uang VARCHAR(5) NOT NULL DEFAULT 'IDR',
+  mata_uang CHAR(3) NOT NULL DEFAULT 'IDR',
   tanggal_transaksi DATE NOT NULL,
   catatan TEXT,
   pengguna_id UUID NOT NULL,
