@@ -8,7 +8,8 @@ class ApiClient {
   private refreshPromise: Promise<void> | null = null;
 
   constructor() {
-    const baseURL = import.meta.env.VITE_CLIENT_TARGET || Local;
+    const baseURL = (import.meta as any).env.VITE_CLIENT_TARGET || Local;
+    console.log(baseURL);
     this.client = new Client(baseURL, {
       requestInit: { credentials: 'include' },
       fetcher: this.authenticatedFetch.bind(this)
