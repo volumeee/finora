@@ -69,7 +69,3 @@ $$ language 'plpgsql';
 
 CREATE TRIGGER update_tenants_diubah_pada BEFORE UPDATE ON tenants FOR EACH ROW EXECUTE FUNCTION update_diubah_pada_column();
 CREATE TRIGGER update_pengguna_diubah_pada BEFORE UPDATE ON pengguna FOR EACH ROW EXECUTE FUNCTION update_diubah_pada_column();
-
-
--- Trigger Encore untuk re-scan tipe kolom
-ALTER TABLE pengguna ALTER COLUMN email TYPE VARCHAR(255);
