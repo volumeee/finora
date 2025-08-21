@@ -9,7 +9,7 @@ CREATE TABLE transaksi (
   kategori_id UUID,
   jenis VARCHAR(20) NOT NULL CHECK (jenis IN ('pengeluaran', 'pemasukan', 'transfer')),
   nominal BIGINT NOT NULL,
-  mata_uang CHAR(3) NOT NULL DEFAULT 'IDR',
+  mata_uang VARCHAR(5) NOT NULL DEFAULT 'IDR',
   tanggal_transaksi DATE NOT NULL,
   catatan TEXT,
   pengguna_id UUID NOT NULL,
