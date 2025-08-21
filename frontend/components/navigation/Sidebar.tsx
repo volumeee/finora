@@ -25,12 +25,12 @@ const navigation = [
 
 export default function Sidebar() {
   return (
-    <div className="w-64 bg-white shadow-sm border-r border-gray-200">
-      <div className="p-6">
-        <h1 className="text-2xl font-bold text-gray-900">Finora</h1>
+    <div className="w-64 bg-white shadow-sm border-r border-gray-200 hidden lg:block">
+      <div className="p-4 lg:p-6">
+        <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Finora</h1>
       </div>
       
-      <nav className="mt-6 px-3">
+      <nav className="mt-4 lg:mt-6 px-2 lg:px-3">
         <ul className="space-y-1">
           {navigation.map((item) => (
             <li key={item.name}>
@@ -45,8 +45,8 @@ export default function Sidebar() {
                   )
                 }
               >
-                <item.icon className="mr-3 h-5 w-5" />
-                {item.name}
+                <item.icon className="mr-3 h-4 lg:h-5 w-4 lg:w-5 flex-shrink-0" />
+                <span className="truncate">{item.name}</span>
               </NavLink>
             </li>
           ))}

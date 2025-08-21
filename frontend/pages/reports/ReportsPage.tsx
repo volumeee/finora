@@ -309,7 +309,7 @@ export default function ReportsPage() {
     
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card>
             <CardContent className="p-4">
               <div className="text-center">
@@ -387,7 +387,7 @@ export default function ReportsPage() {
                     {item.variance >= 0 ? '+' : ''}{item.variance_percentage.toFixed(1)}%
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                   <div>
                     <p className="text-gray-600">Budget</p>
                     <p className="font-medium">{formatCurrency(item.budget)}</p>
@@ -418,7 +418,7 @@ export default function ReportsPage() {
     
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card>
             <CardContent className="p-4">
               <div className="text-center">
@@ -479,18 +479,19 @@ export default function ReportsPage() {
     if (!report) return null;
 
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={resetReport}>
-            ← Kembali
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{report.title}</h1>
-            <p className="text-gray-600">{report.description}</p>
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <Button variant="outline" onClick={resetReport} className="w-fit">
+              ← Kembali
+            </Button>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{report.title}</h1>
+              <p className="text-gray-600 text-sm sm:text-base">{report.description}</p>
+            </div>
           </div>
-        </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="grid xl:grid-cols-3 gap-4 sm:gap-6">
           <Card>
             <CardHeader>
               <CardTitle>Filter & Generate</CardTitle>
@@ -503,7 +504,7 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
 
-          <div className="lg:col-span-2">
+          <div className="xl:col-span-2">
             {reportData ? (
               <div>
                 {activeReport === 'cashflow' && renderCashflowReport()}
@@ -521,19 +522,21 @@ export default function ReportsPage() {
               </Card>
             )}
           </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Laporan</h1>
-        <p className="text-gray-600">Analisis mendalam kondisi keuangan Anda</p>
-      </div>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Laporan</h1>
+          <p className="text-gray-600 text-sm sm:text-base">Analisis mendalam kondisi keuangan Anda</p>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
         {reports.map((report) => (
           <Card 
             key={report.id} 
@@ -557,6 +560,7 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         ))}
+        </div>
       </div>
     </div>
   );

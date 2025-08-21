@@ -40,8 +40,8 @@ interface Category {
   ikon: string;
   kategori_induk_id?: string;
   sistem_bawaan: boolean;
-  dibuat_pada: string;
-  diubah_pada: string;
+  dibuat_pada: Date;
+  diubah_pada: Date;
 }
 
 interface CategoryFormData {
@@ -284,7 +284,7 @@ export default function CategoriesPage() {
           const subCategories = getSubCategories(parent.id);
           return (
             <div key={parent.id} className="border rounded-lg">
-              <div className="flex items-center justify-between p-4">
+              <div className="flex items-center justify-between p-3 sm:p-4">
                 <div className="flex items-center gap-3">
                   <div
                     className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm"
@@ -314,16 +314,17 @@ export default function CategoriesPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleEdit(parent)}
+                      className="p-1 sm:p-2"
                     >
-                      <Edit className="h-4 w-4" />
+                      <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => setDeleteDialog({ open: true, category: parent })}
-                      className="text-red-600 hover:text-red-700"
+                      className="text-red-600 hover:text-red-700 p-1 sm:p-2"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                     </Button>
                   </div>
                 )}
@@ -334,7 +335,7 @@ export default function CategoriesPage() {
                   {subCategories.map((sub) => (
                     <div
                       key={sub.id}
-                      className="flex items-center justify-between p-3 pl-12 border-b last:border-b-0"
+                      className="flex items-center justify-between p-2 sm:p-3 pl-8 sm:pl-12 border-b last:border-b-0"
                     >
                       <div className="flex items-center gap-3">
                         <div
@@ -360,6 +361,7 @@ export default function CategoriesPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleEdit(sub)}
+                            className="p-1"
                           >
                             <Edit className="h-3 w-3" />
                           </Button>
@@ -367,7 +369,7 @@ export default function CategoriesPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => setDeleteDialog({ open: true, category: sub })}
-                            className="text-red-600 hover:text-red-700"
+                            className="text-red-600 hover:text-red-700 p-1"
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -385,25 +387,27 @@ export default function CategoriesPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Kategori</h1>
-          <p className="text-gray-600">Kelola kategori transaksi Anda</p>
-        </div>
-        <Dialog
-          open={isDialogOpen}
-          onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) resetForm();
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Tambah Kategori
-            </Button>
-          </DialogTrigger>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Kategori</h1>
+            <p className="text-gray-600">Kelola kategori transaksi Anda</p>
+          </div>
+          <Dialog
+            open={isDialogOpen}
+            onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) resetForm();
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button className="w-full sm:w-auto">
+                <Plus className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">Tambah Kategori</span>
+                <span className="sm:hidden">Tambah</span>
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
@@ -535,12 +539,12 @@ export default function CategoriesPage() {
         </Dialog>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Daftar Kategori</CardTitle>
-          <CardDescription>Semua kategori transaksi Anda</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <Card>
+          <CardHeader>
+            <CardTitle>Daftar Kategori</CardTitle>
+            <CardDescription>Semua kategori transaksi Anda</CardDescription>
+          </CardHeader>
+          <CardContent>
           {isLoading ? (
             <div className="flex justify-center py-8">
               <LoadingSpinner />
@@ -549,15 +553,16 @@ export default function CategoriesPage() {
             renderCategoryList()
           )}
         </CardContent>
-      </Card>
-      
-      <ConfirmDialog
-        open={deleteDialog.open}
-        onOpenChange={(open) => setDeleteDialog({ open, category: null })}
-        title="Hapus Kategori"
-        description={`Apakah Anda yakin ingin menghapus kategori "${deleteDialog.category?.nama_kategori}"? Tindakan ini tidak dapat dibatalkan.`}
-        onConfirm={handleDelete}
-      />
+        </Card>
+        
+        <ConfirmDialog
+          open={deleteDialog.open}
+          onOpenChange={(open) => setDeleteDialog({ open, category: null })}
+          title="Hapus Kategori"
+          description={`Apakah Anda yakin ingin menghapus kategori "${deleteDialog.category?.nama_kategori}"? Tindakan ini tidak dapat dibatalkan.`}
+          onConfirm={handleDelete}
+        />
+      </div>
     </div>
   );
 }

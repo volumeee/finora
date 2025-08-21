@@ -68,9 +68,13 @@ export default function RegisterPage() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Daftar</CardTitle>
+    <Card className="shadow-lg">
+      <CardHeader className="text-center">
+        <div className="mb-4">
+          <h1 className="text-3xl font-bold text-gray-900">Finora</h1>
+          <p className="mt-2 text-sm text-gray-600">Kelola keuangan dengan mudah</p>
+        </div>
+        <CardTitle className="text-2xl">Daftar</CardTitle>
         <CardDescription>
           Buat akun Finora baru
         </CardDescription>
@@ -186,7 +190,7 @@ export default function RegisterPage() {
 
         <div className="mt-6 text-center text-sm">
           <span className="text-gray-600">Sudah punya akun? </span>
-          <Link to="/auth/login" className="text-blue-600 hover:underline">
+          <Link to="/auth/login" className="text-blue-600 hover:underline font-medium">
             Masuk di sini
           </Link>
         </div>

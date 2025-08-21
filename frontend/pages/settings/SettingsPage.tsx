@@ -7,18 +7,19 @@ import MemberManagement from '@/components/settings/MemberManagement';
 
 export default function SettingsPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Pengaturan</h1>
-        <p className="text-gray-600">Kelola profil dan pengaturan akun Anda</p>
-      </div>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Pengaturan</h1>
+          <p className="text-gray-600 text-sm sm:text-base">Kelola profil dan pengaturan akun Anda</p>
+        </div>
 
-      <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="profile">Profil</TabsTrigger>
-          <TabsTrigger value="tenant">Organisasi</TabsTrigger>
-          <TabsTrigger value="members">Anggota</TabsTrigger>
-        </TabsList>
+        <Tabs defaultValue="profile" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="profile">Profil</TabsTrigger>
+            <TabsTrigger value="tenant">Organisasi</TabsTrigger>
+            <TabsTrigger value="members">Anggota</TabsTrigger>
+          </TabsList>
 
         <TabsContent value="profile">
           <ProfileSettings />
@@ -31,7 +32,8 @@ export default function SettingsPage() {
         <TabsContent value="members">
           <MemberManagement />
         </TabsContent>
-      </Tabs>
+        </Tabs>
+      </div>
     </div>
   );
 }

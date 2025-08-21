@@ -315,23 +315,24 @@ export default function TransactionsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Transaksi</h1>
-          <p className="text-gray-600">Kelola semua transaksi keuangan Anda</p>
-        </div>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Transaksi</h1>
+            <p className="text-gray-600 text-sm sm:text-base">Kelola semua transaksi keuangan Anda</p>
+          </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) resetForm();
         }}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               Tambah Transaksi
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md mx-4">
             <DialogHeader>
               <DialogTitle>{editingTransaction ? 'Edit Transaksi' : 'Tambah Transaksi Baru'}</DialogTitle>
               <DialogDescription>
@@ -601,15 +602,16 @@ export default function TransactionsPage() {
             </div>
           )}
         </CardContent>
-      </Card>
-      
-      <ConfirmDialog
+        </Card>
+        
+        <ConfirmDialog
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog({ open, transaction: null })}
         title="Hapus Transaksi"
         description={`Apakah Anda yakin ingin menghapus transaksi ini? Tindakan ini tidak dapat dibatalkan.`}
         onConfirm={handleDelete}
-      />
+        />
+      </div>
     </div>
   );
 }

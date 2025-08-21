@@ -200,23 +200,24 @@ export default function AccountsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Akun</h1>
-          <p className="text-gray-600">Kelola akun bank, e-wallet, dan aset Anda</p>
-        </div>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Akun</h1>
+            <p className="text-gray-600 text-sm sm:text-base">Kelola akun bank, e-wallet, dan aset Anda</p>
+          </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) resetForm();
         }}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               Tambah Akun
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md mx-4">
             <DialogHeader>
               <DialogTitle>{editingAccount ? 'Edit Akun' : 'Tambah Akun Baru'}</DialogTitle>
               <DialogDescription>
@@ -290,7 +291,7 @@ export default function AccountsPage() {
                 />
               </div>
 
-              <div className="flex gap-2 pt-4">
+              <div className="flex flex-col sm:flex-row gap-2 pt-4">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
                   Batal
                 </Button>
@@ -327,28 +328,28 @@ export default function AccountsPage() {
           ) : (
             <div className="space-y-4">
               {accounts?.map((account) => (
-                <div key={account.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
+                <div key={account.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg bg-white shadow-sm gap-4">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="p-2 bg-blue-100 rounded-lg flex-shrink-0">
                       {getAccountIcon(account.jenis)}
                     </div>
-                    <div>
-                      <h3 className="font-medium">{account.nama_akun}</h3>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-medium truncate">{account.nama_akun}</h3>
                       <p className="text-sm text-gray-500">
                         {accountTypes.find(t => t.value === account.jenis)?.label} • {account.mata_uang}
                       </p>
                       {account.keterangan && (
-                        <p className="text-sm text-gray-400">{account.keterangan}</p>
+                        <p className="text-sm text-gray-400 truncate">{account.keterangan}</p>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
+                  <div className="flex items-center justify-between sm:justify-end gap-3">
+                    <div className="text-left sm:text-right">
                       <p className="font-medium">{formatCurrency(account.saldo_terkini)}</p>
                       <p className="text-sm text-gray-500">Saldo Terkini</p>
                       <p className="text-xs text-gray-400">Awal: {formatCurrency(account.saldo_awal)}</p>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 flex-shrink-0">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -371,15 +372,16 @@ export default function AccountsPage() {
             </div>
           )}
         </CardContent>
-      </Card>
-      
-      <ConfirmDialog
+        </Card>
+        
+        <ConfirmDialog
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog({ open, account: null })}
         title="Hapus Akun"
         description={`Apakah Anda yakin ingin menghapus akun "${deleteDialog.account?.nama_akun}"? Tindakan ini tidak dapat dibatalkan.`}
         onConfirm={handleDelete}
-      />
+        />
+      </div>
     </div>
   );
 }

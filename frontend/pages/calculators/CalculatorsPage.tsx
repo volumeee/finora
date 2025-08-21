@@ -21,6 +21,7 @@ interface EmergencyFundFormData {
   pengeluaran_bulanan: number;
   jumlah_tanggungan: number;
   jenis_pekerjaan: 'tetap' | 'freelance' | 'bisnis';
+  jumlah_bulan: number;
 }
 
 interface RetirementFormData {
@@ -53,7 +54,8 @@ export default function CalculatorsPage() {
   const [emergencyData, setEmergencyData] = useState<EmergencyFundFormData>({
     pengeluaran_bulanan: 0,
     jumlah_tanggungan: 0,
-    jenis_pekerjaan: 'tetap'
+    jenis_pekerjaan: 'tetap',
+    jumlah_bulan: 6
   });
   
   const [retirementData, setRetirementData] = useState<RetirementFormData>({
@@ -505,18 +507,19 @@ export default function CalculatorsPage() {
     if (!calculator) return null;
 
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={resetCalculator}>
-            ← Kembali
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{calculator.title}</h1>
-            <p className="text-gray-600">{calculator.description}</p>
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <Button variant="outline" onClick={resetCalculator} className="w-fit">
+              ← Kembali
+            </Button>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{calculator.title}</h1>
+              <p className="text-gray-600 text-sm sm:text-base">{calculator.description}</p>
+            </div>
           </div>
-        </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
           <Card>
             <CardHeader>
               <CardTitle>Input Data</CardTitle>
@@ -533,19 +536,21 @@ export default function CalculatorsPage() {
           <div>
             {renderResult()}
           </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Kalkulator Keuangan</h1>
-        <p className="text-gray-600">Alat bantu untuk perencanaan keuangan Anda</p>
-      </div>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Kalkulator Keuangan</h1>
+          <p className="text-gray-600 text-sm sm:text-base">Alat bantu untuk perencanaan keuangan Anda</p>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         {calculators.map((calc) => (
           <Card 
             key={calc.id} 
@@ -569,6 +574,7 @@ export default function CalculatorsPage() {
             </CardContent>
           </Card>
         ))}
+        </div>
       </div>
     </div>
   );

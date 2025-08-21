@@ -102,19 +102,20 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">Selamat datang kembali, {user?.nama_lengkap}</p>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-600 text-sm sm:text-base">Selamat datang kembali, {user?.nama_lengkap}</p>
+          </div>
+          <Button onClick={() => navigate('/transactions')} className="w-full sm:w-auto">
+            <Plus className="mr-2 h-4 w-4" />
+            Transaksi Baru
+          </Button>
         </div>
-        <Button onClick={() => navigate('/transactions')}>
-          <Plus className="mr-2 h-4 w-4" />
-          Transaksi Baru
-        </Button>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Saldo</CardTitle>
@@ -168,7 +169,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -254,6 +255,7 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );

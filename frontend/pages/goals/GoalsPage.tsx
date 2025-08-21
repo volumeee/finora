@@ -287,23 +287,24 @@ export default function GoalsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Tujuan Tabungan</h1>
-          <p className="text-gray-600">Tetapkan dan capai tujuan keuangan Anda</p>
-        </div>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Tujuan Tabungan</h1>
+            <p className="text-gray-600 text-sm sm:text-base">Tetapkan dan capai tujuan keuangan Anda</p>
+          </div>
         <Dialog open={isGoalDialogOpen} onOpenChange={(open) => {
           setIsGoalDialogOpen(open);
           if (!open) resetGoalForm();
         }}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               Tambah Tujuan
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md mx-4">
             <DialogHeader>
               <DialogTitle>{editingGoal ? 'Edit Tujuan' : 'Tambah Tujuan Baru'}</DialogTitle>
               <DialogDescription>
@@ -490,7 +491,7 @@ export default function GoalsPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
             {goals.map((goal) => {
               const typeInfo = getGoalTypeInfo(goal.jenis_tujuan);
               const progress = calculateProgress(goal.terkumpul_nominal, goal.target_nominal);
@@ -572,15 +573,16 @@ export default function GoalsPage() {
             })}
           </div>
         )}
-      </div>
-      
-      <ConfirmDialog
+        </div>
+        
+        <ConfirmDialog
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog({ open, goal: null })}
         title="Hapus Tujuan"
         description={`Apakah Anda yakin ingin menghapus tujuan "${deleteDialog.goal?.nama_tujuan}"? Semua kontribusi yang terkait juga akan dihapus. Tindakan ini tidak dapat dibatalkan.`}
         onConfirm={handleDeleteGoal}
-      />
+        />
+      </div>
     </div>
   );
 }
