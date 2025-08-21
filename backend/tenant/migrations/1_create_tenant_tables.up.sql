@@ -1,7 +1,6 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
--- Pastikan ekstensi tersedia
-CREATE EXTENSION IF NOT EXISTS "citext";
+
 
 -- Create tenants table
 CREATE TABLE tenants (
