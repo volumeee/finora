@@ -20,6 +20,11 @@ export const get = api<GetTujuanParams, TujuanTabungan>(
       throw APIError.notFound("savings goal not found");
     }
     
-    return row;
+    // Convert from cents
+    return {
+      ...row,
+      target_nominal: row.target_nominal / 100,
+      nominal_terkumpul: row.nominal_terkumpul / 100,
+    };
   }
 );

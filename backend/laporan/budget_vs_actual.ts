@@ -59,7 +59,7 @@ export const laporanBudgetVsActual = api<LaporanBudgetVsActualParams, LaporanBud
       ORDER BY ab.nominal_budget DESC
     `;
     
-    const budgetData = await laporanDB.rawQueryAll<{
+    const rawBudgetData = await laporanDB.rawQueryAll<{
       kategori_id: string;
       nama_kategori: string;
       budget: number;
@@ -71,7 +71,13 @@ export const laporanBudgetVsActual = api<LaporanBudgetVsActualParams, LaporanBud
     let kategoriOverBudget = 0;
     let kategoriUnderBudget = 0;
     
-    const detailKategori: BudgetVsActualItem[] = budgetData.map(item => {
+    const detailKategori: BudgetVsActualItem[] = rawBudgetData.map(rawItem => {
+      // Convert from cents
+      const item = {
+        ...rawItem,
+        budget: rawItem.budget / 100,
+        actual: rawItem.actual / 100
+      };
       const variance = item.actual - item.budget;
       const variancePersen = item.budget > 0 ? (variance / item.budget) * 100 : 0;
       

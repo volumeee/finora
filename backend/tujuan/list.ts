@@ -36,7 +36,14 @@ export const list = api<ListTujuanParams, ListTujuanResponse>(
     query += ` ORDER BY dibuat_pada DESC LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
     params.push(limit, offset);
     
-    const tujuan = await tujuanDB.rawQueryAll<TujuanTabungan>(query, ...params);
+    const rows = await tujuanDB.rawQueryAll<TujuanTabungan>(query, ...params);
+    
+    // Convert from cents
+    const tujuan = rows.map(row => ({
+      ...row,
+      target_nominal: row.target_nominal / 100,
+      nominal_terkumpul: row.nominal_terkumpul / 100,
+    }));
     
     let countQuery = `
       SELECT COUNT(*) as count

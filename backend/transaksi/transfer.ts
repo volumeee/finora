@@ -27,10 +27,13 @@ export const createTransfer = api<CreateTransferRequest, Transfer>(
     const tx = await transaksiDB.begin();
     
     try {
+      // Convert to cents for database
+      const nominalCents = Math.round(req.nominal * 100);
+      
       // Create outgoing transaction
       const transaksiKeluar = await tx.queryRow<Transaksi>`
         INSERT INTO transaksi (tenant_id, akun_id, jenis, nominal, mata_uang, tanggal_transaksi, catatan, pengguna_id)
-        VALUES (${req.tenant_id}, ${req.akun_asal_id}, 'transfer', ${req.nominal}, ${req.mata_uang || 'IDR'}, ${req.tanggal_transaksi}, ${req.catatan}, ${req.pengguna_id})
+        VALUES (${req.tenant_id}, ${req.akun_asal_id}, 'transfer', ${nominalCents}, ${req.mata_uang || 'IDR'}, ${req.tanggal_transaksi}, ${req.catatan}, ${req.pengguna_id})
         RETURNING id, tenant_id, akun_id, kategori_id, jenis, nominal, mata_uang, tanggal_transaksi, catatan, pengguna_id, transaksi_berulang_id, dibuat_pada, diubah_pada
       `;
       
@@ -41,7 +44,7 @@ export const createTransfer = api<CreateTransferRequest, Transfer>(
       // Create incoming transaction
       const transaksiMasuk = await tx.queryRow<Transaksi>`
         INSERT INTO transaksi (tenant_id, akun_id, jenis, nominal, mata_uang, tanggal_transaksi, catatan, pengguna_id)
-        VALUES (${req.tenant_id}, ${req.akun_tujuan_id}, 'transfer', ${req.nominal}, ${req.mata_uang || 'IDR'}, ${req.tanggal_transaksi}, ${req.catatan}, ${req.pengguna_id})
+        VALUES (${req.tenant_id}, ${req.akun_tujuan_id}, 'transfer', ${nominalCents}, ${req.mata_uang || 'IDR'}, ${req.tanggal_transaksi}, ${req.catatan}, ${req.pengguna_id})
         RETURNING id, tenant_id, akun_id, kategori_id, jenis, nominal, mata_uang, tanggal_transaksi, catatan, pengguna_id, transaksi_berulang_id, dibuat_pada, diubah_pada
       `;
       
@@ -62,10 +65,17 @@ export const createTransfer = api<CreateTransferRequest, Transfer>(
       
       await tx.commit();
       
+      // Convert back from cents
       return {
         id: transfer.id,
-        transaksi_keluar: transaksiKeluar,
-        transaksi_masuk: transaksiMasuk,
+        transaksi_keluar: {
+          ...transaksiKeluar,
+          nominal: transaksiKeluar.nominal / 100
+        },
+        transaksi_masuk: {
+          ...transaksiMasuk,
+          nominal: transaksiMasuk.nominal / 100
+        },
         dibuat_pada: transfer.dibuat_pada
       };
     } catch (error) {

@@ -1,75 +1,181 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, Mail, MoreHorizontal } from 'lucide-react';
+import { Plus, Mail, MoreHorizontal, Users } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useTenant } from '@/contexts/TenantContext';
+import { useAuth } from '@/contexts/AuthContext';
+import apiClient from '@/lib/api-client';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+
+interface Member {
+  id: string;
+  nama_lengkap: string;
+  email: string;
+  avatar_url?: string;
+  peran_id: number;
+  nama_peran: string;
+  bergabung_pada: Date;
+}
 
 export default function MemberManagement() {
-  const { toast } = useToast();
+  const [members, setMembers] = useState<Member[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isInviting, setIsInviting] = useState(false);
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [newRole, setNewRole] = useState('');
+  const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [inviteData, setInviteData] = useState({
     email: '',
-    peran_id: '3' // Default to editor
+    peran_id: 3 // Default to editor
   });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; member: Member | null }>({ open: false, member: null });
 
-  // Mock data - replace with actual API calls
-  const members = [
-    {
-      id: '1',
-      nama_lengkap: 'John Doe',
-      email: 'john@example.com',
-      peran_id: 1,
-      nama_peran: 'Pemilik',
-      bergabung_pada: new Date('2024-01-01')
-    },
-    {
-      id: '2',
-      nama_lengkap: 'Jane Smith',
-      email: 'jane@example.com',
-      peran_id: 2,
-      nama_peran: 'Admin',
-      bergabung_pada: new Date('2024-01-15')
-    }
-  ];
+  const { currentTenant } = useTenant();
+  const { user } = useAuth();
+  const { toast } = useToast();
 
   const roles = [
-    { id: '1', name: 'Pemilik' },
-    { id: '2', name: 'Admin' },
-    { id: '3', name: 'Editor' },
-    { id: '4', name: 'Pembaca' }
+    { id: 1, name: 'Pemilik' },
+    { id: 2, name: 'Admin' },
+    { id: 3, name: 'Editor' },
+    { id: 4, name: 'Pembaca' }
   ];
+
+  useEffect(() => {
+    if (currentTenant) {
+      loadMembers();
+    }
+  }, [currentTenant]);
+
+  const loadMembers = async () => {
+    if (!currentTenant) return;
+    
+    try {
+      setIsLoading(true);
+      const response = await apiClient.user.listMembers({ tenant_id: currentTenant });
+      const membersData = response?.members || [];
+      setMembers(Array.isArray(membersData) ? membersData : []);
+    } catch (error: any) {
+      console.error('Failed to load members:', error);
+      toast({
+        title: "Gagal memuat anggota",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat memuat data anggota",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentTenant || !user) return;
+    
     setIsInviting(true);
 
     try {
-      // TODO: Implement invite API call
+      await apiClient.user.inviteUser({
+        tenant_id: currentTenant,
+        email: inviteData.email,
+        peran_id: inviteData.peran_id,
+        diundang_oleh: user.id
+      });
+      
       toast({
         title: "Undangan terkirim",
         description: `Undangan telah dikirim ke ${inviteData.email}`,
       });
-      setInviteData({ email: '', peran_id: '3' });
+      setInviteData({ email: '', peran_id: 3 });
     } catch (error: any) {
       console.error('Invite error:', error);
       toast({
         title: "Gagal mengirim undangan",
-        description: error.message || "Terjadi kesalahan",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan",
         variant: "destructive",
       });
     } finally {
       setIsInviting(false);
     }
+  };
+
+  const handleUpdateRole = async () => {
+    if (!selectedMember || !currentTenant || !user || !newRole) return;
+    
+    setIsUpdatingRole(true);
+    try {
+      await apiClient.user.updatePermission({
+        tenant_id: currentTenant,
+        pengguna_id: selectedMember.id,
+        peran_id: parseInt(newRole),
+        updated_by: user.id
+      });
+      
+      toast({
+        title: "Peran berhasil diperbarui",
+        description: `Peran ${selectedMember.nama_lengkap} telah diubah`,
+      });
+      
+      setIsRoleDialogOpen(false);
+      setSelectedMember(null);
+      setNewRole('');
+      loadMembers();
+    } catch (error: any) {
+      console.error('Update role error:', error);
+      toast({
+        title: "Gagal memperbarui peran",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
+
+  const handleRemoveMember = async () => {
+    if (!currentTenant || !user || !deleteDialog.member) return;
+    
+    try {
+      await apiClient.user.removeMember({
+        tenant_id: currentTenant,
+        pengguna_id: deleteDialog.member.id,
+        removed_by: user.id
+      });
+      
+      toast({
+        title: "Anggota berhasil dihapus",
+        description: `${deleteDialog.member.nama_lengkap} telah dihapus dari organisasi`,
+      });
+      
+      setDeleteDialog({ open: false, member: null });
+      loadMembers();
+    } catch (error: any) {
+      console.error('Remove member error:', error);
+      toast({
+        title: "Gagal menghapus anggota",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openRoleDialog = (member: Member) => {
+    setSelectedMember(member);
+    setNewRole(member.peran_id.toString());
+    setIsRoleDialogOpen(true);
   };
 
   const getRoleBadgeColor = (roleId: number) => {
@@ -109,15 +215,15 @@ export default function MemberManagement() {
               <div className="space-y-2">
                 <Label htmlFor="role">Peran</Label>
                 <Select 
-                  value={inviteData.peran_id} 
-                  onValueChange={(value) => setInviteData(prev => ({ ...prev, peran_id: value }))}
+                  value={inviteData.peran_id.toString()} 
+                  onValueChange={(value) => setInviteData(prev => ({ ...prev, peran_id: parseInt(value) }))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Pilih peran" />
                   </SelectTrigger>
                   <SelectContent>
                     {roles.slice(1).map((role) => ( // Exclude owner role
-                      <SelectItem key={role.id} value={role.id}>
+                      <SelectItem key={role.id} value={role.id.toString()}>
                         {role.name}
                       </SelectItem>
                     ))}
@@ -127,8 +233,17 @@ export default function MemberManagement() {
             </div>
 
             <Button type="submit" disabled={isInviting}>
-              <Mail className="mr-2 h-4 w-4" />
-              {isInviting ? 'Mengirim...' : 'Kirim Undangan'}
+              {isInviting ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Mengirim...
+                </>
+              ) : (
+                <>
+                  <Mail className="mr-2 h-4 w-4" />
+                  Kirim Undangan
+                </>
+              )}
             </Button>
           </form>
         </CardContent>
@@ -142,47 +257,134 @@ export default function MemberManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {members.map((member) => (
-              <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium">
-                      {member.nama_lengkap.split(' ').map(n => n[0]).join('').toUpperCase()}
-                    </span>
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <LoadingSpinner />
+            </div>
+          ) : members.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <p className="text-gray-500">Belum ada anggota lain dalam organisasi ini</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {members.map((member) => (
+                <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                      {member.avatar_url ? (
+                        <img src={member.avatar_url} alt={member.nama_lengkap} className="w-10 h-10 rounded-full" />
+                      ) : (
+                        <span className="text-sm font-medium">
+                          {member.nama_lengkap.split(' ').map(n => n[0]).join('').toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium">{member.nama_lengkap}</p>
+                      <p className="text-sm text-gray-500">{member.email}</p>
+                      <p className="text-xs text-gray-400">
+                        Bergabung {new Date(member.bergabung_pada).toLocaleDateString('id-ID')}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium">{member.nama_lengkap}</p>
-                    <p className="text-sm text-gray-500">{member.email}</p>
-                  </div>
-                </div>
 
-                <div className="flex items-center space-x-3">
-                  <Badge className={getRoleBadgeColor(member.peran_id)}>
-                    {member.nama_peran}
-                  </Badge>
-                  
-                  {member.peran_id !== 1 && ( // Don't show menu for owner
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Ubah Peran</DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600">
-                          Hapus dari Organisasi
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+                  <div className="flex items-center space-x-3">
+                    <Badge className={getRoleBadgeColor(member.peran_id)}>
+                      {member.nama_peran}
+                    </Badge>
+                    
+                    {member.peran_id !== 1 && member.id !== user?.id && ( // Don't show menu for owner or self
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openRoleDialog(member)}>
+                            Ubah Peran
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="text-red-600"
+                            onClick={() => setDeleteDialog({ open: true, member })}
+                          >
+                            Hapus dari Organisasi
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Role Update Dialog */}
+      <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ubah Peran Anggota</DialogTitle>
+            <DialogDescription>
+              Ubah peran untuk {selectedMember?.nama_lengkap}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new_role">Peran Baru</Label>
+              <Select value={newRole} onValueChange={setNewRole}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih peran baru" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.slice(1).map((role) => ( // Exclude owner role
+                    <SelectItem key={role.id} value={role.id.toString()}>
+                      {role.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex gap-2 pt-4">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setIsRoleDialogOpen(false)}
+                className="flex-1"
+              >
+                Batal
+              </Button>
+              <Button 
+                onClick={handleUpdateRole} 
+                disabled={isUpdatingRole || !newRole}
+                className="flex-1"
+              >
+                {isUpdatingRole ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    Memperbarui...
+                  </>
+                ) : (
+                  'Perbarui Peran'
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog({ open, member: null })}
+        title="Hapus Anggota"
+        description={`Apakah Anda yakin ingin menghapus "${deleteDialog.member?.nama_lengkap}" dari organisasi? Anggota ini akan kehilangan akses ke semua data organisasi. Tindakan ini tidak dapat dibatalkan.`}
+        onConfirm={handleRemoveMember}
+        confirmText="Hapus Anggota"
+      />
     </div>
   );
 }

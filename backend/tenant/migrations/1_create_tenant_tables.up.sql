@@ -1,9 +1,6 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Enable CITEXT extension for case-insensitive text
-CREATE EXTENSION IF NOT EXISTS "citext";
-
 -- Create tenants table
 CREATE TABLE tenants (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -20,7 +17,7 @@ CREATE TABLE tenants (
 CREATE TABLE pengguna (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   nama_lengkap VARCHAR(100) NOT NULL,
-  email CITEXT UNIQUE NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
   kata_sandi_hash TEXT NOT NULL,
   avatar_url TEXT,
   no_telepon VARCHAR(20),

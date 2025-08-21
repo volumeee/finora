@@ -62,7 +62,7 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
     
     const transaksi = await transaksiDB.rawQueryAll<Transaksi>(query, ...params);
     
-    // Get split categories for each transaction
+    // Get split categories for each transaction and convert from cents
     for (const t of transaksi) {
       const splits = await transaksiDB.queryAll<SplitKategori>`
         SELECT kategori_id, nominal_split
@@ -70,8 +70,13 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
         WHERE transaksi_id = ${t.id}
       `;
       if (splits.length > 0) {
-        t.split_kategori = splits;
+        t.split_kategori = splits.map(s => ({
+          ...s,
+          nominal_split: s.nominal_split / 100
+        }));
       }
+      // Convert nominal from cents
+      t.nominal = t.nominal / 100;
     }
     
     // Count total

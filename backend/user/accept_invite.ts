@@ -31,11 +31,12 @@ export interface AcceptInviteResponse {
 export const acceptInvite = api<AcceptInviteRequest, AcceptInviteResponse>(
   { expose: true, method: "POST", path: "/user/accept-invite" },
   async (req) => {
-    const tx = await authDB.begin();
+    const authTx = await authDB.begin();
+    const tenantTx = await tenantDB.begin();
     
     try {
       // Find valid invitation
-      const invitation = await tx.queryRow<{
+      const invitation = await authTx.queryRow<{
         id: string;
         tenant_id: string;
         email: string;
@@ -55,15 +56,15 @@ export const acceptInvite = api<AcceptInviteRequest, AcceptInviteResponse>(
         throw APIError.alreadyExists("invitation already accepted");
       }
       
-      // Check if user already exists
-      let pengguna = await tx.queryRow<{
+      // Check if user already exists (case-insensitive)
+      let pengguna = await tenantTx.queryRow<{
         id: string;
         nama_lengkap: string;
         email: string;
       }>`
         SELECT id, nama_lengkap, email
         FROM pengguna
-        WHERE email = ${invitation.email} AND dihapus_pada IS NULL
+        WHERE LOWER(email) = LOWER(${invitation.email}) AND dihapus_pada IS NULL
       `;
       
       let isNewUser = false;
@@ -76,13 +77,13 @@ export const acceptInvite = api<AcceptInviteRequest, AcceptInviteResponse>(
         
         const kataSandiHash = await bcrypt.hash(req.kata_sandi, 10);
         
-        pengguna = await tx.queryRow<{
+        pengguna = await tenantTx.queryRow<{
           id: string;
           nama_lengkap: string;
           email: string;
         }>`
           INSERT INTO pengguna (nama_lengkap, email, kata_sandi_hash, no_telepon)
-          VALUES (${req.nama_lengkap}, ${invitation.email}, ${kataSandiHash}, ${req.no_telepon})
+          VALUES (${req.nama_lengkap}, ${invitation.email.toLowerCase()}, ${kataSandiHash}, ${req.no_telepon})
           RETURNING id, nama_lengkap, email
         `;
         
@@ -94,20 +95,20 @@ export const acceptInvite = api<AcceptInviteRequest, AcceptInviteResponse>(
       }
       
       // Add user to tenant
-      await tenantDB.exec`
+      await tenantTx.exec`
         INSERT INTO pengguna_tenant (tenant_id, pengguna_id, peran_id)
         VALUES (${invitation.tenant_id}, ${pengguna.id}, ${invitation.peran_id})
       `;
       
       // Mark invitation as accepted
-      await tx.exec`
+      await authTx.exec`
         UPDATE undangan
         SET diterima_pada = NOW()
         WHERE id = ${invitation.id}
       `;
       
       // Get tenant and role info
-      const tenantInfo = await tenantDB.queryRow<{
+      const tenantInfo = await tenantTx.queryRow<{
         id: string;
         nama: string;
         sub_domain: string;
@@ -123,7 +124,8 @@ export const acceptInvite = api<AcceptInviteRequest, AcceptInviteResponse>(
         throw new Error("Failed to get tenant info");
       }
       
-      await tx.commit();
+      await authTx.commit();
+      await tenantTx.commit();
       
       return {
         pengguna,
@@ -136,7 +138,8 @@ export const acceptInvite = api<AcceptInviteRequest, AcceptInviteResponse>(
         is_new_user: isNewUser
       };
     } catch (error) {
-      await tx.rollback();
+      await authTx.rollback();
+      await tenantTx.rollback();
       throw error;
     }
   }

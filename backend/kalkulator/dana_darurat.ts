@@ -42,21 +42,21 @@ export const hitungDanaDarurat = api<KalkulatorDanaDaruratRequest, KalkulatorDan
     ];
     
     return {
-      target_dana_darurat: Math.round(targetDanaDarurat),
-      tabungan_bulanan_diperlukan: Math.round(tabunganBulananDiperlukan),
+      target_dana_darurat: targetDanaDarurat,
+      tabungan_bulanan_diperlukan: tabunganBulananDiperlukan,
       rekomendasi_instrumen: rekomendasiInstrumen,
       skenario: {
         konservatif: {
           jumlah_bulan: 6,
-          target_nominal: Math.round(req.pengeluaran_bulanan * 6)
+          target_nominal: req.pengeluaran_bulanan * 6
         },
         moderat: {
           jumlah_bulan: 9,
-          target_nominal: Math.round(req.pengeluaran_bulanan * 9)
+          target_nominal: req.pengeluaran_bulanan * 9
         },
         agresif: {
           jumlah_bulan: 12,
-          target_nominal: Math.round(req.pengeluaran_bulanan * 12)
+          target_nominal: req.pengeluaran_bulanan * 12
         }
       }
     };

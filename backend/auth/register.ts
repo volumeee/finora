@@ -2,8 +2,15 @@ import { api, APIError } from "encore.dev/api";
 import { authDB } from "./db";
 import { SQLDatabase } from "encore.dev/storage/sqldb";
 import * as bcrypt from "bcrypt";
+import * as crypto from "crypto";
 
 const tenantDB = SQLDatabase.named("tenant");
+
+// Role constants
+const ROLE_OWNER = 1;
+const ROLE_ADMIN = 2;
+const ROLE_EDITOR = 3;
+const ROLE_READER = 4;
 
 export interface RegisterRequest {
   nama_lengkap: string;
@@ -34,12 +41,27 @@ export interface RegisterResponse {
 export const register = api<RegisterRequest, RegisterResponse>(
   { expose: true, method: "POST", path: "/auth/register" },
   async (req) => {
-    const tx = await authDB.begin();
+    // Input validation
+    if (!req.email || !req.email.includes('@')) {
+      throw APIError.invalidArgument("valid email is required");
+    }
+    if (!req.kata_sandi || req.kata_sandi.length < 8) {
+      throw APIError.invalidArgument("password must be at least 8 characters");
+    }
+    if (!req.nama_lengkap || req.nama_lengkap.trim().length === 0) {
+      throw APIError.invalidArgument("full name is required");
+    }
+    if (!req.sub_domain || !/^[a-z0-9-]+$/.test(req.sub_domain)) {
+      throw APIError.invalidArgument("subdomain must contain only lowercase letters, numbers, and hyphens");
+    }
+    const tenantTx = await tenantDB.begin();
+    const authTx = await authDB.begin();
     
     try {
-      // Check if email already exists
-      const existingUser = await tx.queryRow<{ id: string }>`
-        SELECT id FROM pengguna WHERE email = ${req.email}
+      // Check if email already exists (case-insensitive)
+      const normalizedEmail = req.email.toLowerCase();
+      const existingUser = await tenantTx.queryRow<{ id: string }>`
+        SELECT id FROM pengguna WHERE LOWER(email) = ${normalizedEmail}
       `;
       
       if (existingUser) {
@@ -47,7 +69,7 @@ export const register = api<RegisterRequest, RegisterResponse>(
       }
       
       // Check if subdomain already exists
-      const existingTenant = await tenantDB.queryRow<{ id: string }>`
+      const existingTenant = await tenantTx.queryRow<{ id: string }>`
         SELECT id FROM tenants WHERE sub_domain = ${req.sub_domain}
       `;
       
@@ -59,14 +81,14 @@ export const register = api<RegisterRequest, RegisterResponse>(
       const kataSandiHash = await bcrypt.hash(req.kata_sandi, 10);
       
       // Create user
-      const pengguna = await tx.queryRow<{
+      const pengguna = await tenantTx.queryRow<{
         id: string;
         nama_lengkap: string;
         email: string;
         no_telepon?: string;
       }>`
         INSERT INTO pengguna (nama_lengkap, email, kata_sandi_hash, no_telepon)
-        VALUES (${req.nama_lengkap}, ${req.email}, ${kataSandiHash}, ${req.no_telepon})
+        VALUES (${req.nama_lengkap}, ${normalizedEmail}, ${kataSandiHash}, ${req.no_telepon})
         RETURNING id, nama_lengkap, email, no_telepon
       `;
       
@@ -75,7 +97,7 @@ export const register = api<RegisterRequest, RegisterResponse>(
       }
       
       // Create tenant
-      const tenant = await tenantDB.queryRow<{
+      const tenant = await tenantTx.queryRow<{
         id: string;
         nama: string;
         sub_domain: string;
@@ -90,9 +112,9 @@ export const register = api<RegisterRequest, RegisterResponse>(
       }
       
       // Add user to tenant as owner
-      await tenantDB.exec`
+      await tenantTx.exec`
         INSERT INTO pengguna_tenant (tenant_id, pengguna_id, peran_id)
-        VALUES (${tenant.id}, ${pengguna.id}, 1)
+        VALUES (${tenant.id}, ${pengguna.id}, ${ROLE_OWNER})
       `;
       
       // Generate tokens
@@ -101,12 +123,13 @@ export const register = api<RegisterRequest, RegisterResponse>(
       const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
       
       // Store refresh token
-      await tx.exec`
+      await authTx.exec`
         INSERT INTO sesi_login (pengguna_id, refresh_token_hash, kedaluwarsa)
         VALUES (${pengguna.id}, ${refreshTokenHash}, NOW() + INTERVAL '30 days')
       `;
       
-      await tx.commit();
+      await tenantTx.commit();
+      await authTx.commit();
       
       return {
         pengguna,
@@ -115,18 +138,29 @@ export const register = api<RegisterRequest, RegisterResponse>(
         refresh_token: refreshToken
       };
     } catch (error) {
-      await tx.rollback();
+      await tenantTx.rollback();
+      await authTx.rollback();
       throw error;
     }
   }
 );
 
 function generateAccessToken(userId: string): string {
-  // In production, use proper JWT library
-  return `access_${userId}_${Date.now()}`;
+  // Simple JWT-like token for demo purposes
+  // In production, use proper JWT library with signing
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ 
+    sub: userId, 
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + (15 * 60) // 15 minutes
+  })).toString('base64url');
+  const signature = crypto.createHmac('sha256', 'your-secret-key')
+    .update(`${header}.${payload}`)
+    .digest('base64url');
+  return `${header}.${payload}.${signature}`;
 }
 
 function generateRefreshToken(): string {
-  // In production, use crypto.randomBytes
-  return `refresh_${Math.random().toString(36).substring(2)}_${Date.now()}`;
+  // Use cryptographically secure random bytes
+  return crypto.randomBytes(32).toString('hex');
 }

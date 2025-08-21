@@ -2,9 +2,9 @@ import { api } from "encore.dev/api";
 
 export interface KalkulatorKPRRequest {
   harga_properti: number;
-  uang_muka_persen: number;
+  uang_muka_persen: number;                // dalam persen (10 = 10%)
   tenor_tahun: number;
-  bunga_tahunan_persen: number;
+  bunga_tahunan_persen: number;            // dalam persen (5 = 5%)
   tipe_bunga: "fixed" | "floating";
   biaya_provisi?: number;
   biaya_admin?: number;
@@ -56,22 +56,22 @@ export const hitungKPR = api<KalkulatorKPRRequest, KalkulatorKPRResponse>(
       
       tabelAngsuran.push({
         bulan,
-        angsuran_pokok: Math.round(angsuranPokok),
-        angsuran_bunga: Math.round(angsuranBunga),
-        total_angsuran: Math.round(angsuranBulanan),
-        sisa_pokok: Math.round(Math.max(0, sisaPokok))
+        angsuran_pokok: angsuranPokok,
+        angsuran_bunga: angsuranBunga,
+        total_angsuran: angsuranBulanan,
+        sisa_pokok: Math.max(0, sisaPokok)
       });
     }
     
     const totalPembayaran = angsuranBulanan * jumlahBulan + biayaTambahan;
     
     return {
-      uang_muka: Math.round(uangMuka),
-      jumlah_pinjaman: Math.round(jumlahPinjaman),
-      angsuran_bulanan: Math.round(angsuranBulanan),
-      total_bunga: Math.round(totalBunga),
-      total_pembayaran: Math.round(totalPembayaran),
-      biaya_tambahan: Math.round(biayaTambahan),
+      uang_muka: uangMuka,
+      jumlah_pinjaman: jumlahPinjaman,
+      angsuran_bulanan: angsuranBulanan,
+      total_bunga: totalBunga,
+      total_pembayaran: totalPembayaran,
+      biaya_tambahan: biayaTambahan,
       tabel_angsuran
     };
   }

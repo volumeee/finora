@@ -64,20 +64,22 @@ export const laporanCashflow = api<LaporanCashflowParams, LaporanCashflowRespons
       ORDER BY t.tanggal_transaksi
     `;
     
-    const dailyData = await laporanDB.rawQueryAll<{
+    const rawDailyData = await laporanDB.rawQueryAll<{
       tanggal: string;
       pemasukan: number;
       pengeluaran: number;
     }>(dailyQuery, ...params);
     
-    // Calculate running balance and format data
+    // Calculate running balance and format data, convert from cents
     let saldoBerjalan = 0;
-    const dataHarian: CashflowItem[] = dailyData.map(item => {
-      saldoBerjalan += item.pemasukan - item.pengeluaran;
+    const dataHarian: CashflowItem[] = rawDailyData.map(item => {
+      const pemasukan = item.pemasukan / 100;
+      const pengeluaran = item.pengeluaran / 100;
+      saldoBerjalan += pemasukan - pengeluaran;
       return {
         tanggal: item.tanggal,
-        pemasukan: item.pemasukan,
-        pengeluaran: item.pengeluaran,
+        pemasukan,
+        pengeluaran,
         saldo_berjalan: saldoBerjalan
       };
     });
@@ -91,13 +93,14 @@ export const laporanCashflow = api<LaporanCashflowParams, LaporanCashflowRespons
       ${whereClause}
     `;
     
-    const summary = await laporanDB.rawQueryRow<{
+    const rawSummary = await laporanDB.rawQueryRow<{
       total_pemasukan: number;
       total_pengeluaran: number;
     }>(summaryQuery, ...params);
     
-    const totalPemasukan = summary?.total_pemasukan || 0;
-    const totalPengeluaran = summary?.total_pengeluaran || 0;
+    // Convert from cents
+    const totalPemasukan = (rawSummary?.total_pemasukan || 0) / 100;
+    const totalPengeluaran = (rawSummary?.total_pengeluaran || 0) / 100;
     const netCashflow = totalPemasukan - totalPengeluaran;
     const daysDiff = Math.ceil((new Date(tanggal_sampai).getTime() - new Date(tanggal_dari).getTime()) / (1000 * 60 * 60 * 24)) + 1;
     const rataRataHarian = netCashflow / daysDiff;
@@ -115,16 +118,20 @@ export const laporanCashflow = api<LaporanCashflowParams, LaporanCashflowRespons
       LIMIT 5
     `;
     
-    const topCategories = await laporanDB.rawQueryAll<{
+    const rawTopCategories = await laporanDB.rawQueryAll<{
       nama_kategori: string;
       total_nominal: number;
     }>(categoryQuery, ...params);
     
-    const kategoriTeratas = topCategories.map(cat => ({
-      nama_kategori: cat.nama_kategori,
-      total_nominal: cat.total_nominal,
-      persentase: totalPengeluaran > 0 ? (cat.total_nominal / totalPengeluaran) * 100 : 0
-    }));
+    // Convert from cents
+    const kategoriTeratas = rawTopCategories.map(cat => {
+      const totalNominal = cat.total_nominal / 100;
+      return {
+        nama_kategori: cat.nama_kategori,
+        total_nominal: totalNominal,
+        persentase: totalPengeluaran > 0 ? (totalNominal / totalPengeluaran) * 100 : 0
+      };
+    });
     
     return {
       periode: {

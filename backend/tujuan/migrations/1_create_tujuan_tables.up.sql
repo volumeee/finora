@@ -7,8 +7,8 @@ CREATE TABLE tujuan_tabungan (
   tenant_id UUID NOT NULL,
   nama_tujuan VARCHAR(100) NOT NULL,
   jenis_tujuan VARCHAR(20) NOT NULL CHECK (jenis_tujuan IN ('dana_darurat', 'rumah', 'kendaraan', 'liburan', 'pendidikan', 'pensiun', 'lainnya')),
-  target_nominal NUMERIC(14,2) NOT NULL,
-  nominal_terkumpul NUMERIC(14,2) DEFAULT 0,
+  target_nominal BIGINT NOT NULL,
+  nominal_terkumpul BIGINT DEFAULT 0,
   tenggat_tanggal DATE,
   catatan TEXT,
   dibuat_pada TIMESTAMPTZ DEFAULT NOW(),
@@ -20,13 +20,13 @@ CREATE TABLE tujuan_tabungan (
 CREATE TABLE kalkulator_kpr (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tujuan_tabungan_id UUID NOT NULL UNIQUE REFERENCES tujuan_tabungan(id) ON DELETE CASCADE,
-  harga_properti NUMERIC(14,2) NOT NULL,
-  uang_muka_persen NUMERIC(5,2) NOT NULL,
+  harga_properti BIGINT NOT NULL,
+  uang_muka_persen BIGINT NOT NULL,        -- simpan dalam basis poin (10000 = 100%)
   tenor_tahun SMALLINT NOT NULL,
-  bunga_tahunan_persen NUMERIC(5,2) NOT NULL,
+  bunga_tahunan_persen BIGINT NOT NULL,    -- simpan dalam basis poin (500 = 5%)
   tipe_bunga VARCHAR(10) NOT NULL CHECK (tipe_bunga IN ('fixed', 'floating')),
-  biaya_provisi NUMERIC(12,2) DEFAULT 0,
-  biaya_admin NUMERIC(12,2) DEFAULT 0,
+  biaya_provisi BIGINT DEFAULT 0,
+  biaya_admin BIGINT DEFAULT 0,
   dibuat_pada TIMESTAMPTZ DEFAULT NOW(),
   diubah_pada TIMESTAMPTZ DEFAULT NOW()
 );
@@ -36,7 +36,7 @@ CREATE TABLE kontribusi_tujuan (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tujuan_tabungan_id UUID NOT NULL REFERENCES tujuan_tabungan(id) ON DELETE CASCADE,
   transaksi_id UUID NOT NULL UNIQUE,
-  nominal_kontribusi NUMERIC(14,2) NOT NULL,
+  nominal_kontribusi BIGINT NOT NULL,
   tanggal_kontribusi DATE NOT NULL
 );
 

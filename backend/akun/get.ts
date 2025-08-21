@@ -15,11 +15,16 @@ export const get = api<GetAkunParams, Akun>(
       FROM akun
       WHERE id = ${id} AND dihapus_pada IS NULL
     `;
-    
+
     if (!row) {
       throw APIError.notFound("account not found");
     }
-    
-    return row;
+
+    // konversi dari bigint cents → normal
+    return {
+      ...row,
+      saldo_awal: Number(row.saldo_awal) / 100,
+      saldo_terkini: Number(row.saldo_terkini) / 100,
+    };
   }
 );

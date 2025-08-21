@@ -8,7 +8,7 @@ CREATE TABLE transaksi (
   akun_id UUID NOT NULL,
   kategori_id UUID,
   jenis VARCHAR(20) NOT NULL CHECK (jenis IN ('pengeluaran', 'pemasukan', 'transfer')),
-  nominal NUMERIC(14,2) NOT NULL,
+  nominal BIGINT NOT NULL,
   mata_uang CHAR(3) NOT NULL DEFAULT 'IDR',
   tanggal_transaksi DATE NOT NULL,
   catatan TEXT,
@@ -24,7 +24,7 @@ CREATE TABLE detail_transaksi_split (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   transaksi_id UUID NOT NULL REFERENCES transaksi(id) ON DELETE CASCADE,
   kategori_id UUID NOT NULL,
-  nominal_split NUMERIC(14,2) NOT NULL
+  nominal_split BIGINT NOT NULL
 );
 
 -- Create transfer_antar_akun table
@@ -42,7 +42,7 @@ CREATE TABLE struk (
   nama_file TEXT NOT NULL,
   s3_key TEXT NOT NULL,
   ocr_merchant VARCHAR(100),
-  ocr_total NUMERIC(14,2),
+  ocr_total BIGINT,
   ocr_confidence SMALLINT,
   ocr_raw JSONB,
   dibuat_pada TIMESTAMPTZ DEFAULT NOW()

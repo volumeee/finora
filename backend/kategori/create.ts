@@ -27,7 +27,7 @@ export const create = api<CreateKategoriRequest, Kategori>(
   async (req) => {
     const row = await kategoriDB.queryRow<Kategori>`
       INSERT INTO kategori (tenant_id, nama_kategori, warna, ikon, kategori_induk_id, sistem_bawaan)
-      VALUES (${req.tenant_id}, ${req.nama_kategori}, ${req.warna || '#6b7280'}, ${req.ikon || 'help-circle'}, ${req.kategori_induk_id}, false)
+      VALUES (${req.tenant_id}, ${req.nama_kategori}, ${req.warna || '#6b7280'}, ${req.ikon || 'help-circle'}, ${req.kategori_induk_id || null}, false)
       RETURNING id, tenant_id, nama_kategori, warna, ikon, kategori_induk_id, sistem_bawaan, dibuat_pada, diubah_pada
     `;
     

@@ -34,11 +34,11 @@ export default function ProfileSettings() {
         title: "Profil diperbarui",
         description: "Informasi profil Anda berhasil diperbarui",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Profile update error:', error);
       toast({
         title: "Gagal memperbarui profil",
-        description: error.message || "Terjadi kesalahan",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan",
         variant: "destructive",
       });
     } finally {

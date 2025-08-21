@@ -35,11 +35,11 @@ export default function TenantSettings() {
         title: "Organisasi diperbarui",
         description: "Informasi organisasi berhasil diperbarui",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Tenant update error:', error);
       toast({
         title: "Gagal memperbarui organisasi",
-        description: error.message || "Terjadi kesalahan",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan",
         variant: "destructive",
       });
     } finally {

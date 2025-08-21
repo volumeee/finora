@@ -59,8 +59,8 @@ export const hitungCustomGoal = api<KalkulatorCustomGoalRequest, KalkulatorCusto
       },
       {
         jenis: "Tabungan Reguler",
-        tabungan_bulanan: Math.round(tabunganBulananTanpaInvestasi),
-        total_kontribusi: Math.round(tabunganBulananTanpaInvestasi * bulanTersisa),
+        tabungan_bulanan: tabunganBulananTanpaInvestasi,
+        total_kontribusi: tabunganBulananTanpaInvestasi * bulanTersisa,
         return_investasi: 0,
         kemungkinan_tercapai: "Tinggi"
       }
@@ -69,9 +69,9 @@ export const hitungCustomGoal = api<KalkulatorCustomGoalRequest, KalkulatorCusto
     if (returnTahunan > 0) {
       skenario.push({
         jenis: "Investasi + Tabungan",
-        tabungan_bulanan: Math.round(tabunganBulananDenganInvestasi),
-        total_kontribusi: Math.round(tabunganBulananDenganInvestasi * bulanTersisa),
-        return_investasi: Math.round((tabunganBulananDenganInvestasi * bulanTersisa * returnTahunan * bulanTersisa / 12)),
+        tabungan_bulanan: tabunganBulananDenganInvestasi,
+        total_kontribusi: tabunganBulananDenganInvestasi * bulanTersisa,
+        return_investasi: (tabunganBulananDenganInvestasi * bulanTersisa * returnTahunan * bulanTersisa / 12),
         kemungkinan_tercapai: "Sedang"
       });
     }
@@ -85,13 +85,13 @@ export const hitungCustomGoal = api<KalkulatorCustomGoalRequest, KalkulatorCusto
       return {
         bulan: bulanMilestone,
         target_tercapai_persen: persen,
-        nominal_tercapai: Math.round(nominalTercapai)
+        nominal_tercapai: nominalTercapai
       };
     });
     
     return {
       bulan_tersisa: bulanTersisa,
-      tabungan_bulanan_diperlukan: Math.round(tabunganBulananTanpaInvestasi),
+      tabungan_bulanan_diperlukan: tabunganBulananTanpaInvestasi,
       skenario,
       milestone
     };

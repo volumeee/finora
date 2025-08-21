@@ -41,8 +41,9 @@ export const update = api<UpdateTransaksiParams & UpdateTransaksiRequest, Transa
         values.push(updates.jenis);
       }
       if (updates.nominal !== undefined) {
+        const nominalCents = Math.round(updates.nominal * 100);
         setParts.push(`nominal = $${paramIndex++}`);
-        values.push(updates.nominal);
+        values.push(nominalCents);
       }
       if (updates.mata_uang !== undefined) {
         setParts.push(`mata_uang = $${paramIndex++}`);
@@ -93,26 +94,35 @@ export const update = api<UpdateTransaksiParams & UpdateTransaksiRequest, Transa
         
         // Insert new splits
         for (const split of updates.split_kategori) {
+          const splitCents = Math.round(split.nominal_split * 100);
           await tx.exec`
             INSERT INTO detail_transaksi_split (transaksi_id, kategori_id, nominal_split)
-            VALUES (${id}, ${split.kategori_id}, ${split.nominal_split})
+            VALUES (${id}, ${split.kategori_id}, ${splitCents})
           `;
         }
         transaksi.split_kategori = updates.split_kategori;
       } else {
-        // Get existing splits
+        // Get existing splits and convert from cents
         const splits = await tx.queryAll<SplitKategori>`
           SELECT kategori_id, nominal_split
           FROM detail_transaksi_split
           WHERE transaksi_id = ${id}
         `;
         if (splits.length > 0) {
-          transaksi.split_kategori = splits;
+          transaksi.split_kategori = splits.map(s => ({
+            ...s,
+            nominal_split: s.nominal_split / 100
+          }));
         }
       }
       
       await tx.commit();
-      return transaksi;
+      
+      // Convert nominal from cents
+      return {
+        ...transaksi,
+        nominal: transaksi.nominal / 100,
+      };
     } catch (error) {
       await tx.rollback();
       throw error;

@@ -2,6 +2,7 @@ import { api, APIError } from "encore.dev/api";
 import { authDB } from "./db";
 import { SQLDatabase } from "encore.dev/storage/sqldb";
 import * as bcrypt from "bcrypt";
+import * as crypto from "crypto";
 
 const tenantDB = SQLDatabase.named("tenant");
 
@@ -32,8 +33,9 @@ export interface LoginResponse {
 export const login = api<LoginRequest, LoginResponse>(
   { expose: true, method: "POST", path: "/auth/login" },
   async (req) => {
-    // Get user by email
-    const pengguna = await authDB.queryRow<{
+    // Get user by email (case-insensitive)
+    const normalizedEmail = req.email.toLowerCase();
+    const pengguna = await tenantDB.queryRow<{
       id: string;
       nama_lengkap: string;
       email: string;
@@ -43,7 +45,7 @@ export const login = api<LoginRequest, LoginResponse>(
     }>`
       SELECT id, nama_lengkap, email, kata_sandi_hash, avatar_url, no_telepon
       FROM pengguna
-      WHERE email = ${req.email} AND dihapus_pada IS NULL
+      WHERE LOWER(email) = ${normalizedEmail} AND dihapus_pada IS NULL
     `;
     
     if (!pengguna) {
@@ -98,11 +100,21 @@ export const login = api<LoginRequest, LoginResponse>(
 );
 
 function generateAccessToken(userId: string): string {
-  // In production, use proper JWT library
-  return `access_${userId}_${Date.now()}`;
+  // Simple JWT-like token for demo purposes
+  // In production, use proper JWT library with signing
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ 
+    sub: userId, 
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + (15 * 60) // 15 minutes
+  })).toString('base64url');
+  const signature = crypto.createHmac('sha256', 'your-secret-key')
+    .update(`${header}.${payload}`)
+    .digest('base64url');
+  return `${header}.${payload}.${signature}`;
 }
 
 function generateRefreshToken(): string {
-  // In production, use crypto.randomBytes
-  return `refresh_${Math.random().toString(36).substring(2)}_${Date.now()}`;
+  // Use cryptographically secure random bytes
+  return crypto.randomBytes(32).toString('hex');
 }

@@ -1,9 +1,6 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Enable CITEXT extension for case-insensitive text
-CREATE EXTENSION IF NOT EXISTS "citext";
-
 -- Create sesi_login table
 CREATE TABLE sesi_login (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -19,7 +16,7 @@ CREATE TABLE sesi_login (
 CREATE TABLE undangan (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID NOT NULL,
-  email CITEXT NOT NULL,
+  email VARCHAR(255) NOT NULL,
   peran_id SMALLINT NOT NULL,
   token TEXT NOT NULL UNIQUE,
   diundang_oleh UUID NOT NULL,

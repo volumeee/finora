@@ -20,7 +20,7 @@ export const get = api<GetTransaksiParams, Transaksi>(
       throw APIError.notFound("transaction not found");
     }
     
-    // Get split categories
+    // Get split categories and convert from cents
     const splits = await transaksiDB.queryAll<SplitKategori>`
       SELECT kategori_id, nominal_split
       FROM detail_transaksi_split
@@ -28,9 +28,16 @@ export const get = api<GetTransaksiParams, Transaksi>(
     `;
     
     if (splits.length > 0) {
-      row.split_kategori = splits;
+      row.split_kategori = splits.map(s => ({
+        ...s,
+        nominal_split: s.nominal_split / 100
+      }));
     }
     
-    return row;
+    // Convert nominal from cents
+    return {
+      ...row,
+      nominal: row.nominal / 100,
+    };
   }
 );

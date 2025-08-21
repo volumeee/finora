@@ -20,9 +20,12 @@ export interface Kontribusi {
 export const createKontribusi = api<CreateKontribusiRequest, Kontribusi>(
   { expose: true, method: "POST", path: "/tujuan/kontribusi" },
   async (req) => {
+    // Convert to cents for database
+    const nominalCents = Math.round(req.nominal_kontribusi * 100);
+    
     const row = await tujuanDB.queryRow<Kontribusi>`
       INSERT INTO kontribusi_tujuan (tujuan_tabungan_id, transaksi_id, nominal_kontribusi, tanggal_kontribusi)
-      VALUES (${req.tujuan_tabungan_id}, ${req.transaksi_id}, ${req.nominal_kontribusi}, ${req.tanggal_kontribusi})
+      VALUES (${req.tujuan_tabungan_id}, ${req.transaksi_id}, ${nominalCents}, ${req.tanggal_kontribusi})
       RETURNING id, tujuan_tabungan_id, transaksi_id, nominal_kontribusi, tanggal_kontribusi
     `;
     
@@ -30,7 +33,11 @@ export const createKontribusi = api<CreateKontribusiRequest, Kontribusi>(
       throw new Error("Failed to create contribution");
     }
     
-    return row;
+    // Convert back from cents
+    return {
+      ...row,
+      nominal_kontribusi: row.nominal_kontribusi / 100,
+    };
   }
 );
 
@@ -46,12 +53,18 @@ interface ListKontribusiResponse {
 export const listKontribusi = api<ListKontribusiParams, ListKontribusiResponse>(
   { expose: true, method: "GET", path: "/tujuan/:tujuan_id/kontribusi" },
   async ({ tujuan_id }) => {
-    const kontribusi = await tujuanDB.queryAll<Kontribusi>`
+    const rows = await tujuanDB.queryAll<Kontribusi>`
       SELECT id, tujuan_tabungan_id, transaksi_id, nominal_kontribusi, tanggal_kontribusi
       FROM kontribusi_tujuan
       WHERE tujuan_tabungan_id = ${tujuan_id}
       ORDER BY tanggal_kontribusi DESC
     `;
+    
+    // Convert from cents
+    const kontribusi = rows.map(row => ({
+      ...row,
+      nominal_kontribusi: row.nominal_kontribusi / 100,
+    }));
     
     return { kontribusi };
   }

@@ -18,6 +18,7 @@ import CalculatorsPage from '@/pages/calculators/CalculatorsPage';
 import ReportsPage from '@/pages/reports/ReportsPage';
 import SettingsPage from '@/pages/settings/SettingsPage';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,21 +47,25 @@ function App() {
                 {/* Protected Dashboard Routes */}
                 <Route path="/dashboard" element={
                   <ProtectedRoute>
-                    <DashboardLayout />
+                    <ErrorBoundary>
+                      <DashboardLayout />
+                    </ErrorBoundary>
                   </ProtectedRoute>
                 }>
-                  <Route index element={<DashboardPage />} />
-                  <Route path="transactions" element={<TransactionsPage />} />
-                  <Route path="accounts" element={<AccountsPage />} />
-                  <Route path="categories" element={<CategoriesPage />} />
-                  <Route path="goals" element={<GoalsPage />} />
-                  <Route path="calculators" element={<CalculatorsPage />} />
-                  <Route path="reports" element={<ReportsPage />} />
-                  <Route path="settings" element={<SettingsPage />} />
+                  <Route index element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
+                  <Route path="transactions" element={<ErrorBoundary><TransactionsPage /></ErrorBoundary>} />
+                  <Route path="accounts" element={<ErrorBoundary><AccountsPage /></ErrorBoundary>} />
+                  <Route path="categories" element={<ErrorBoundary><CategoriesPage /></ErrorBoundary>} />
+                  <Route path="goals" element={<ErrorBoundary><GoalsPage /></ErrorBoundary>} />
+                  <Route path="calculators" element={<ErrorBoundary><CalculatorsPage /></ErrorBoundary>} />
+                  <Route path="reports" element={<ErrorBoundary><ReportsPage /></ErrorBoundary>} />
+                  <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
                 </Route>
 
                 {/* Redirect root to dashboard */}
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+
               </Routes>
               <Toaster />
             </div>

@@ -55,11 +55,11 @@ export default function RegisterPage() {
         description: "Akun Anda telah dibuat!",
       });
       navigate('/dashboard');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Registration error:', error);
       toast({
         title: "Registrasi gagal",
-        description: error.message || "Terjadi kesalahan saat membuat akun",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat membuat akun",
         variant: "destructive",
       });
     } finally {
@@ -152,6 +152,7 @@ export default function RegisterPage() {
               placeholder="Minimal 8 karakter"
               value={formData.kata_sandi}
               onChange={handleChange}
+              autoComplete="new-password"
               required
               minLength={8}
             />
@@ -166,6 +167,7 @@ export default function RegisterPage() {
               placeholder="Ulangi password"
               value={formData.confirmPassword}
               onChange={handleChange}
+              autoComplete="new-password"
               required
             />
           </div>

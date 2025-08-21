@@ -58,7 +58,14 @@ export const laporanNetWorth = api<LaporanNetWorthParams, LaporanNetWorthRespons
       ORDER BY jenis, nama_akun
     `;
     
-    const accounts = await laporanDB.rawQueryAll<NetWorthByAccount>(accountsQuery, tenant_id);
+    const rawAccounts = await laporanDB.rawQueryAll<NetWorthByAccount>(accountsQuery, tenant_id);
+    
+    // Convert from cents to regular numbers
+    const accounts = rawAccounts.map(acc => ({
+      ...acc,
+      saldo_terkini: acc.saldo_terkini / 100,
+      kontribusi_net_worth: acc.kontribusi_net_worth / 100
+    }));
     
     const totalAset = accounts
       .filter(acc => ['kas', 'bank', 'e_wallet', 'aset'].includes(acc.jenis))

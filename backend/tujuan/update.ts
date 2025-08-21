@@ -31,8 +31,9 @@ export const update = api<UpdateTujuanParams & UpdateTujuanRequest, TujuanTabung
       values.push(updates.jenis_tujuan);
     }
     if (updates.target_nominal !== undefined) {
+      const targetCents = Math.round(updates.target_nominal * 100);
       setParts.push(`target_nominal = $${paramIndex++}`);
-      values.push(updates.target_nominal);
+      values.push(targetCents);
     }
     if (updates.tenggat_tanggal !== undefined) {
       setParts.push(`tenggat_tanggal = $${paramIndex++}`);
@@ -61,6 +62,11 @@ export const update = api<UpdateTujuanParams & UpdateTujuanRequest, TujuanTabung
       throw APIError.notFound("savings goal not found");
     }
     
-    return row;
+    // Convert from cents
+    return {
+      ...row,
+      target_nominal: row.target_nominal / 100,
+      nominal_terkumpul: row.nominal_terkumpul / 100,
+    };
   }
 );

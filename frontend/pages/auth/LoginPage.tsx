@@ -28,11 +28,11 @@ export default function LoginPage() {
         description: "Selamat datang kembali!",
       });
       navigate('/dashboard');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login error:', error);
       toast({
         title: "Login gagal",
-        description: error.message || "Email atau password salah",
+        description: error instanceof Error ? error.message : "Email atau password salah",
         variant: "destructive",
       });
     } finally {
@@ -70,6 +70,7 @@ export default function LoginPage() {
               placeholder="Masukkan password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
               required
             />
           </div>

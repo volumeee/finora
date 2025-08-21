@@ -35,23 +35,24 @@ export const inviteUser = api<InviteUserRequest, InviteUserResponse>(
       throw APIError.permissionDenied("insufficient permissions to invite users");
     }
     
-    // Check if user is already a member
+    // Check if user is already a member (case-insensitive)
+    const normalizedEmail = req.email.toLowerCase();
     const existingMember = await tenantDB.queryRow<{ id: string }>`
       SELECT pt.id
       FROM pengguna_tenant pt
       JOIN pengguna p ON pt.pengguna_id = p.id
-      WHERE pt.tenant_id = ${req.tenant_id} AND p.email = ${req.email}
+      WHERE pt.tenant_id = ${req.tenant_id} AND LOWER(p.email) = ${normalizedEmail}
     `;
     
     if (existingMember) {
       throw APIError.alreadyExists("user is already a member of this tenant");
     }
     
-    // Check if there's already a pending invitation
+    // Check if there's already a pending invitation (case-insensitive)
     const existingInvite = await authDB.queryRow<{ id: string }>`
       SELECT id
       FROM undangan
-      WHERE tenant_id = ${req.tenant_id} AND email = ${req.email} AND diterima_pada IS NULL AND kedaluwarsa > NOW()
+      WHERE tenant_id = ${req.tenant_id} AND LOWER(email) = ${normalizedEmail} AND diterima_pada IS NULL AND kedaluwarsa > NOW()
     `;
     
     if (existingInvite) {
@@ -65,7 +66,7 @@ export const inviteUser = api<InviteUserRequest, InviteUserResponse>(
     // Create invitation
     const invitation = await authDB.queryRow<InviteUserResponse>`
       INSERT INTO undangan (tenant_id, email, peran_id, token, diundang_oleh, kedaluwarsa)
-      VALUES (${req.tenant_id}, ${req.email}, ${req.peran_id}, ${token}, ${req.diundang_oleh}, ${kedaluwarsa})
+      VALUES (${req.tenant_id}, ${normalizedEmail}, ${req.peran_id}, ${token}, ${req.diundang_oleh}, ${kedaluwarsa})
       RETURNING id, email, peran_id, token, kedaluwarsa
     `;
     

@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { authDB } from "./db";
 import * as bcrypt from "bcrypt";
+import * as crypto from "crypto";
 
 export interface RefreshTokenRequest {
   refresh_token: string;
@@ -59,11 +60,21 @@ export const refreshToken = api<RefreshTokenRequest, RefreshTokenResponse>(
 );
 
 function generateAccessToken(userId: string): string {
-  // In production, use proper JWT library
-  return `access_${userId}_${Date.now()}`;
+  // Simple JWT-like token for demo purposes
+  // In production, use proper JWT library with signing
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ 
+    sub: userId, 
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + (15 * 60) // 15 minutes
+  })).toString('base64url');
+  const signature = crypto.createHmac('sha256', 'your-secret-key')
+    .update(`${header}.${payload}`)
+    .digest('base64url');
+  return `${header}.${payload}.${signature}`;
 }
 
 function generateRefreshToken(): string {
-  // In production, use crypto.randomBytes
-  return `refresh_${Math.random().toString(36).substring(2)}_${Date.now()}`;
+  // Use cryptographically secure random bytes
+  return crypto.randomBytes(32).toString('hex');
 }

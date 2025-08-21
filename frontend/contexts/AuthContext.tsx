@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import backend from '~backend/client';
+import apiClient from '../lib/api-client';
 
 interface User {
   id: string;
@@ -51,36 +51,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuthStatus = async () => {
     try {
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (!refreshToken) {
+      if (!apiClient.isAuthenticated()) {
         setIsLoading(false);
         return;
       }
-
-      const response = await backend.auth.refreshToken({ refresh_token: refreshToken });
-      localStorage.setItem('access_token', response.access_token);
-      localStorage.setItem('refresh_token', response.refresh_token);
       
-      // Get user profile after refresh
-      await refreshAuth();
+      // Try to refresh token and get user data
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (refreshToken) {
+        const response = await apiClient.auth.refreshToken({ refresh_token: refreshToken });
+        apiClient.saveTokens(response.access_token, response.refresh_token);
+        
+        // Get stored user data or fetch from API
+        const storedUser = localStorage.getItem('user_data');
+        const storedTenants = localStorage.getItem('tenants_data');
+        
+        if (storedUser && storedTenants) {
+          setUser(JSON.parse(storedUser));
+          setTenants(JSON.parse(storedTenants));
+        }
+      }
     } catch (error) {
       console.error('Auth check failed:', error);
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      apiClient.clearTokens();
+      localStorage.removeItem('user_data');
+      localStorage.removeItem('tenants_data');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const login = async (email: string, kata_sandi: string) => {
+  const login = async (email: string, password: string) => {
     try {
-      const response = await backend.auth.login({ email, kata_sandi });
+      const response = await apiClient.login(email, password);
       
       setUser(response.pengguna);
       setTenants(response.tenants);
       
-      localStorage.setItem('access_token', response.access_token);
-      localStorage.setItem('refresh_token', response.refresh_token);
+      // Store user data for persistence
+      localStorage.setItem('user_data', JSON.stringify(response.pengguna));
+      localStorage.setItem('tenants_data', JSON.stringify(response.tenants));
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
@@ -89,18 +99,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (data: RegisterData) => {
     try {
-      const response = await backend.auth.register(data);
+      const response = await apiClient.register(data);
       
-      setUser(response.pengguna);
-      setTenants([{
+      const tenantData = [{
         id: response.tenant.id,
         nama: response.tenant.nama,
         sub_domain: response.tenant.sub_domain,
         peran: 'pemilik'
-      }]);
+      }];
       
-      localStorage.setItem('access_token', response.access_token);
-      localStorage.setItem('refresh_token', response.refresh_token);
+      setUser(response.pengguna);
+      setTenants(tenantData);
+      
+      // Store user data for persistence
+      localStorage.setItem('user_data', JSON.stringify(response.pengguna));
+      localStorage.setItem('tenants_data', JSON.stringify(tenantData));
     } catch (error) {
       console.error('Registration failed:', error);
       throw error;
@@ -109,17 +122,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (refreshToken) {
-        await backend.auth.logout({ refresh_token: refreshToken });
-      }
+      await apiClient.logout();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
       setTenants([]);
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user_data');
+      localStorage.removeItem('tenants_data');
     }
   };
 

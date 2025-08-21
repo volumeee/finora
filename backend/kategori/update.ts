@@ -48,7 +48,7 @@ export const update = api<UpdateKategoriParams & UpdateKategoriRequest, Kategori
     }
     if (updates.kategori_induk_id !== undefined) {
       setParts.push(`kategori_induk_id = $${paramIndex++}`);
-      values.push(updates.kategori_induk_id);
+      values.push(updates.kategori_induk_id || null);
     }
 
     if (setParts.length === 0) {

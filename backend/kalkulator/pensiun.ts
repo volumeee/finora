@@ -4,8 +4,8 @@ export interface KalkulatorPensiunRequest {
   usia_sekarang: number;
   usia_pensiun: number;
   target_passive_income_bulanan: number;
-  inflasi_tahunan_persen?: number;
-  return_investasi_tahunan_persen?: number;
+  inflasi_tahunan_persen?: number;         // dalam persen (3 = 3%)
+  return_investasi_tahunan_persen?: number; // dalam persen (8 = 8%)
 }
 
 export interface KalkulatorPensiunResponse {
@@ -64,16 +64,16 @@ export const hitungPensiun = api<KalkulatorPensiunRequest, KalkulatorPensiunResp
       proyeksiTahunan.push({
         tahun,
         usia: req.usia_sekarang + tahun,
-        kontribusi_tahunan: Math.round(kontribusiTahunan),
-        nilai_investasi: Math.round(nilaiInvestasi)
+        kontribusi_tahunan: kontribusiTahunan,
+        nilai_investasi: nilaiInvestasi
       });
     }
     
     return {
       tahun_menabung: tahunMenabung,
-      target_dana_pensiun: Math.round(targetDanaPensiun),
-      tabungan_bulanan_diperlukan: Math.round(tabunganBulananDiperlukan),
-      nilai_sekarang_target: Math.round(nilaiSekarangTarget),
+      target_dana_pensiun: targetDanaPensiun,
+      tabungan_bulanan_diperlukan: tabunganBulananDiperlukan,
+      nilai_sekarang_target: nilaiSekarangTarget,
       rekomendasi_investasi: rekomendasiInvestasi,
       proyeksi_tahunan
     };

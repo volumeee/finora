@@ -35,11 +35,12 @@ export const update = api<UpdateAkunParams & UpdateAkunRequest, Akun>(
       values.push(updates.mata_uang);
     }
     if (updates.saldo_awal !== undefined) {
+      const saldo = Math.round(updates.saldo_awal * 100);
       setParts.push(`saldo_awal = $${paramIndex++}`);
-      values.push(updates.saldo_awal);
-      // Update saldo_terkini if saldo_awal changes
+      values.push(saldo);
+      // Update saldo_terkini juga
       setParts.push(`saldo_terkini = $${paramIndex++}`);
-      values.push(updates.saldo_awal);
+      values.push(saldo);
     }
     if (updates.keterangan !== undefined) {
       setParts.push(`keterangan = $${paramIndex++}`);
@@ -53,17 +54,22 @@ export const update = api<UpdateAkunParams & UpdateAkunRequest, Akun>(
     values.push(id);
     const query = `
       UPDATE akun 
-      SET ${setParts.join(', ')}, diubah_pada = NOW()
+      SET ${setParts.join(", ")}, diubah_pada = NOW()
       WHERE id = $${paramIndex} AND dihapus_pada IS NULL
       RETURNING id, tenant_id, nama_akun, jenis, mata_uang, saldo_awal, saldo_terkini, keterangan, dibuat_pada, diubah_pada
     `;
 
     const row = await akunDB.rawQueryRow<Akun>(query, ...values);
-    
+
     if (!row) {
       throw APIError.notFound("account not found");
     }
-    
-    return row;
+
+    // convert saldo kembali
+    return {
+      ...row,
+      saldo_awal: Number(row.saldo_awal) / 100,
+      saldo_terkini: Number(row.saldo_terkini) / 100,
+    };
   }
 );

@@ -35,6 +35,7 @@ const BROWSER = typeof globalThis === "object" && ("window" in globalThis);
 export class Client {
     public readonly akun: akun.ServiceClient
     public readonly auth: auth.ServiceClient
+    public readonly dashboard: dashboard.ServiceClient
     public readonly kalkulator: kalkulator.ServiceClient
     public readonly kategori: kategori.ServiceClient
     public readonly laporan: laporan.ServiceClient
@@ -58,6 +59,7 @@ export class Client {
         const base = new BaseClient(this.target, this.options)
         this.akun = new akun.ServiceClient(base)
         this.auth = new auth.ServiceClient(base)
+        this.dashboard = new dashboard.ServiceClient(base)
         this.kalkulator = new kalkulator.ServiceClient(base)
         this.kategori = new kategori.ServiceClient(base)
         this.laporan = new laporan.ServiceClient(base)
@@ -757,11 +759,39 @@ export namespace tujuan {
 /**
  * Import the endpoint handlers to derive the types for the client.
  */
+import { getStats as api_dashboard_stats_getStats } from "~backend/dashboard/stats";
+
 import { acceptInvite as api_user_accept_invite_acceptInvite } from "~backend/user/accept_invite";
 import { inviteUser as api_user_invite_inviteUser } from "~backend/user/invite";
 import { listMembers as api_user_list_members_listMembers } from "~backend/user/list_members";
 import { removeMember as api_user_remove_member_removeMember } from "~backend/user/remove_member";
 import { updatePermission as api_user_update_permission_updatePermission } from "~backend/user/update_permission";
+
+export namespace dashboard {
+
+    export class ServiceClient {
+        private baseClient: BaseClient
+
+        constructor(baseClient: BaseClient) {
+            this.baseClient = baseClient
+            this.getStats = this.getStats.bind(this)
+        }
+
+        /**
+         * Gets dashboard statistics for a tenant.
+         */
+        public async getStats(params: RequestType<typeof api_dashboard_stats_getStats>): Promise<ResponseType<typeof api_dashboard_stats_getStats>> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                "tenant_id": params["tenant_id"],
+            })
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/dashboard/stats`, {query, method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_dashboard_stats_getStats>
+        }
+    }
+}
 
 export namespace user {
 

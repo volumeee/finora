@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import backend from '~backend/client';
+import apiClient from '@/lib/api-client';
 
 export default function AcceptInvitePage() {
   const { token } = useParams<{ token: string }>();
@@ -54,7 +54,7 @@ export default function AcceptInvitePage() {
     setIsLoading(true);
 
     try {
-      const requestData: any = { token };
+      const requestData: { token: string; nama_lengkap?: string; kata_sandi?: string; no_telepon?: string } = { token };
       
       if (isNewUser) {
         requestData.nama_lengkap = formData.nama_lengkap;
@@ -64,7 +64,7 @@ export default function AcceptInvitePage() {
         }
       }
 
-      const response = await backend.user.acceptInvite(requestData);
+      const response = await apiClient.user.acceptInvite(requestData);
       
       toast({
         title: "Undangan diterima",
@@ -77,11 +77,11 @@ export default function AcceptInvitePage() {
       } else {
         navigate('/dashboard');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Accept invite error:', error);
       toast({
         title: "Gagal menerima undangan",
-        description: error.message || "Terjadi kesalahan",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan",
         variant: "destructive",
       });
     } finally {
