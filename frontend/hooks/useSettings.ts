@@ -193,11 +193,77 @@ export const useMemberManagement = () => {
     }
   }, [toast]);
 
+  const listInvites = useCallback(async (tenantId: string) => {
+    setIsLoading(true);
+    try {
+      const response = await apiClient.user.listInvites({ tenant_id: tenantId });
+      return response?.invites || [];
+    } catch (error: any) {
+      toast({
+        title: "Gagal memuat undangan",
+        description: error?.message || "Terjadi kesalahan",
+        variant: "destructive",
+      });
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  const cancelInvite = useCallback(async (data: {
+    invite_id: string;
+    tenant_id: string;
+  }) => {
+    setIsLoading(true);
+    try {
+      await apiClient.user.cancelInvite(data);
+      toast({
+        title: "Undangan dibatalkan",
+        description: "Undangan berhasil dibatalkan",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Gagal membatalkan undangan",
+        description: error?.message || "Terjadi kesalahan",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  const resendInvite = useCallback(async (data: {
+    invite_id: string;
+    tenant_id: string;
+  }) => {
+    setIsLoading(true);
+    try {
+      await apiClient.user.resendInvite(data);
+      toast({
+        title: "Undangan dikirim ulang",
+        description: "Undangan berhasil dikirim ulang",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Gagal mengirim ulang undangan",
+        description: error?.message || "Terjadi kesalahan",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
   return {
     inviteUser,
     updatePermission,
     removeMember,
     listMembers,
+    listInvites,
+    cancelInvite,
+    resendInvite,
     isLoading
   };
 };

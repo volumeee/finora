@@ -859,9 +859,12 @@ export namespace tujuan {
 import { getStats as api_dashboard_stats_getStats } from "~backend/dashboard/stats";
 
 import { acceptInvite as api_user_accept_invite_acceptInvite } from "~backend/user/accept_invite";
+import { cancelInvite as api_user_cancel_invite_cancelInvite } from "~backend/user/cancel_invite";
 import { inviteUser as api_user_invite_inviteUser } from "~backend/user/invite";
+import { listInvites as api_user_list_invites_listInvites } from "~backend/user/list_invites";
 import { listMembers as api_user_list_members_listMembers } from "~backend/user/list_members";
 import { removeMember as api_user_remove_member_removeMember } from "~backend/user/remove_member";
+import { resendInvite as api_user_resend_invite_resendInvite } from "~backend/user/resend_invite";
 import { updatePermission as api_user_update_permission_updatePermission } from "~backend/user/update_permission";
 
 export namespace dashboard {
@@ -898,9 +901,12 @@ export namespace user {
         constructor(baseClient: BaseClient) {
             this.baseClient = baseClient
             this.acceptInvite = this.acceptInvite.bind(this)
+            this.cancelInvite = this.cancelInvite.bind(this)
             this.inviteUser = this.inviteUser.bind(this)
+            this.listInvites = this.listInvites.bind(this)
             this.listMembers = this.listMembers.bind(this)
             this.removeMember = this.removeMember.bind(this)
+            this.resendInvite = this.resendInvite.bind(this)
             this.updatePermission = this.updatePermission.bind(this)
         }
 
@@ -914,12 +920,39 @@ export namespace user {
         }
 
         /**
+         * Cancels a pending invitation.
+         */
+        public async cancelInvite(params: RequestType<typeof api_user_cancel_invite_cancelInvite>): Promise<void> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                "invite_id": params["invite_id"],
+                "tenant_id": params["tenant_id"],
+            })
+
+            await this.baseClient.callTypedAPI(`/user/invite`, {query, method: "DELETE", body: undefined})
+        }
+
+        /**
          * Invites a user to join a tenant.
          */
         public async inviteUser(params: RequestType<typeof api_user_invite_inviteUser>): Promise<ResponseType<typeof api_user_invite_inviteUser>> {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/user/invite`, {method: "POST", body: JSON.stringify(params)})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_user_invite_inviteUser>
+        }
+
+        /**
+         * Lists pending invitations for a tenant.
+         */
+        public async listInvites(params: RequestType<typeof api_user_list_invites_listInvites>): Promise<ResponseType<typeof api_user_list_invites_listInvites>> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                "tenant_id": params["tenant_id"],
+            })
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/user/invites`, {query, method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_user_list_invites_listInvites>
         }
 
         /**
@@ -945,11 +978,19 @@ export namespace user {
             // Convert our params into the objects we need for the request
             const query = makeRecord<string, string | string[]>({
                 "pengguna_id": params["pengguna_id"],
-                "removed_by":  params["removed_by"],
                 "tenant_id":   params["tenant_id"],
             })
 
             await this.baseClient.callTypedAPI(`/user/member`, {query, method: "DELETE", body: undefined})
+        }
+
+        /**
+         * Resends a pending invitation with new token and expiry.
+         */
+        public async resendInvite(params: RequestType<typeof api_user_resend_invite_resendInvite>): Promise<ResponseType<typeof api_user_resend_invite_resendInvite>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/user/invite/resend`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_user_resend_invite_resendInvite>
         }
 
         /**

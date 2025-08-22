@@ -31,6 +31,16 @@ interface Member {
   bergabung_pada: Date;
 }
 
+interface PendingInvite {
+  id: string;
+  email: string;
+  peran_id: number;
+  nama_peran: string;
+  token: string;
+  kedaluwarsa: Date;
+  dibuat_pada: Date;
+}
+
 function MemberManagementSkeleton() {
   return (
     <div className="space-y-6">
@@ -83,6 +93,7 @@ function MemberManagementSkeleton() {
 
 export default function MemberManagement() {
   const [members, setMembers] = useState<Member[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isInviting, setIsInviting] = useState(false);
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
@@ -98,7 +109,7 @@ export default function MemberManagement() {
   const { currentTenant } = useTenant();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { inviteUser, updatePermission, removeMember, listMembers, isLoading: hookLoading } = useMemberManagement();
+  const { inviteUser, updatePermission, removeMember, listMembers, listInvites, cancelInvite, resendInvite, isLoading: hookLoading } = useMemberManagement();
 
   const roles = [
     { id: 1, name: 'Pemilik' },
@@ -112,10 +123,15 @@ export default function MemberManagement() {
     
     setIsLoading(true);
     try {
-      const membersList = await listMembers(currentTenant);
+      const [membersList, invitesList] = await Promise.all([
+        listMembers(currentTenant),
+        listInvites(currentTenant)
+      ]);
       setMembers(membersList);
+      setPendingInvites(invitesList);
     } catch (error) {
       setMembers([]);
+      setPendingInvites([]);
     } finally {
       setIsLoading(false);
     }
@@ -144,10 +160,33 @@ export default function MemberManagement() {
       });
       
       setInviteData({ email: '', peran_id: 3 });
+      await loadMembers(); // Refresh to show new pending invite
     } catch (error) {
       // Error handling is done in the hook
     } finally {
       setIsInviting(false);
+    }
+  };
+
+  const handleCancelInvite = async (inviteId: string) => {
+    if (!currentTenant) return;
+    
+    try {
+      await cancelInvite({ invite_id: inviteId, tenant_id: currentTenant });
+      await loadMembers();
+    } catch (error) {
+      // Error handling is done in the hook
+    }
+  };
+
+  const handleResendInvite = async (inviteId: string) => {
+    if (!currentTenant) return;
+    
+    try {
+      await resendInvite({ invite_id: inviteId, tenant_id: currentTenant });
+      await loadMembers();
+    } catch (error) {
+      // Error handling is done in the hook
     }
   };
 
@@ -338,6 +377,55 @@ export default function MemberManagement() {
           )}
         </CardContent>
       </Card>
+
+      {pendingInvites.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Undangan Tertunda</CardTitle>
+            <CardDescription>
+              Undangan yang belum diterima
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {pendingInvites.map((invite) => (
+                <div key={invite.id} className="flex items-center justify-between p-4 border rounded-lg bg-yellow-50">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-10 h-10 bg-yellow-200 rounded-full flex items-center justify-center">
+                      <Mail className="h-5 w-5 text-yellow-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{invite.email}</p>
+                      <p className="text-sm text-gray-500">Peran: {invite.nama_peran}</p>
+                      <p className="text-xs text-gray-400">
+                        Kedaluwarsa: {new Date(invite.kedaluwarsa).toLocaleDateString('id-ID')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleResendInvite(invite.id)}
+                    >
+                      Kirim Ulang
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCancelInvite(invite.id)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      Batalkan
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Role Update Dialog */}
       <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
