@@ -30,14 +30,14 @@ export const get = api<GetTransaksiParams, Transaksi>(
     if (splits.length > 0) {
       row.split_kategori = splits.map(s => ({
         ...s,
-        nominal_split: Number(s.nominal_split) / 100
+        nominal_split: s.nominal_split / 100
       }));
     }
     
     // Convert nominal from cents
     return {
       ...row,
-      nominal: Number(row.nominal) / 100,
+      nominal: row.nominal / 100,
     };
   }
 );

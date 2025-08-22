@@ -19,7 +19,7 @@ export const deleteTransaksi = api<DeleteTransaksiParams, void>(
       const transaksi = await tx.queryRow<{
         akun_id: string;
         jenis: string;
-        nominal: bigint;
+        nominal: number;
       }>`
         SELECT akun_id, jenis, nominal
         FROM transaksi
@@ -40,11 +40,11 @@ export const deleteTransaksi = api<DeleteTransaksiParams, void>(
       // Delete split categories (hard delete since they're dependent)
       await tx.exec`DELETE FROM detail_transaksi_split WHERE transaksi_id = ${id}`;
 
-      // Revert balance update within transaction for atomicity
+      // Revert balance update before commit
       if (transaksi.jenis === "pemasukan") {
-        await tx.exec`UPDATE akun SET saldo_terkini = safe_bigint_subtract(saldo_terkini, ${transaksi.nominal}) WHERE id = ${transaksi.akun_id}`;
+        await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini - ${transaksi.nominal} WHERE id = ${transaksi.akun_id}`;
       } else if (transaksi.jenis === "pengeluaran") {
-        await tx.exec`UPDATE akun SET saldo_terkini = safe_bigint_add(saldo_terkini, ${transaksi.nominal}) WHERE id = ${transaksi.akun_id}`;
+        await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini + ${transaksi.nominal} WHERE id = ${transaksi.akun_id}`;
       }
 
       await tx.commit();
