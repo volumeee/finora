@@ -1,24 +1,55 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/components/ui/use-toast';
-import { Plus, Edit, Trash2, ArrowUpRight, ArrowDownLeft, ArrowRightLeft, Filter } from 'lucide-react';
-import { useTenant } from '@/contexts/TenantContext';
-import { useAuth } from '@/contexts/AuthContext';
-import apiClient from '@/lib/api-client';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import React, { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  Plus,
+  Edit,
+  Trash2,
+  ArrowUpRight,
+  ArrowDownLeft,
+  ArrowRightLeft,
+} from "lucide-react";
+import { useTenant } from "@/contexts/TenantContext";
+import { useAuth } from "@/contexts/AuthContext";
+import apiClient from "@/lib/api-client";
+import { TransactionSkeleton } from "@/components/ui/skeletons";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { formatCurrency, getTransactionColor } from "@/lib/format";
+
+type TransactionType = "pemasukan" | "pengeluaran" | "transfer";
+type CategoryType = "pemasukan" | "pengeluaran";
 
 interface Transaction {
   id: string;
   akun_id: string;
   kategori_id?: string;
-  jenis: 'pemasukan' | 'pengeluaran' | 'transfer';
+  jenis: TransactionType;
   nominal: number;
   mata_uang: string;
   tanggal_transaksi: string;
@@ -37,13 +68,13 @@ interface Account {
 interface Category {
   id: string;
   nama_kategori: string;
-  jenis: 'pemasukan' | 'pengeluaran';
+  jenis: CategoryType;
 }
 
 interface TransactionFormData {
   akun_id: string;
   kategori_id: string;
-  jenis: 'pemasukan' | 'pengeluaran' | 'transfer';
+  jenis: Exclude<TransactionType, "transfer">;
   nominal: number;
   mata_uang: string;
   tanggal_transaksi: string;
@@ -59,93 +90,131 @@ interface TransferFormData {
   catatan: string;
 }
 
-export default function TransactionsPage() {
+interface Filters {
+  jenis: string;
+  akun_id: string;
+  kategori_id: string;
+  tanggal_dari: string;
+  tanggal_sampai: string;
+}
+
+const INITIAL_TRANSACTION_FORM: TransactionFormData = {
+  akun_id: "",
+  kategori_id: "",
+  jenis: "pengeluaran",
+  nominal: 0,
+  mata_uang: "IDR",
+  tanggal_transaksi: new Date().toISOString().split("T")[0],
+  catatan: "",
+};
+
+const getInitialTransferForm = (): TransferFormData => ({
+  akun_asal_id: "",
+  akun_tujuan_id: "",
+  nominal: 0,
+  mata_uang: "IDR",
+  tanggal_transaksi: new Date().toISOString().split("T")[0],
+  catatan: "",
+});
+
+const safeFormatCurrency = (value: number | undefined | null): string => {
+  const numValue = Number(value);
+  return Number.isFinite(numValue) ? formatCurrency(numValue) : formatCurrency(0);
+};
+
+export default function TransactionsPage(): JSX.Element {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [goals, setGoals] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState('transaction');
-  const [filters, setFilters] = useState({
-    jenis: '',
-    akun_id: '',
-    kategori_id: '',
-    tanggal_dari: '',
-    tanggal_sampai: ''
+  const [activeTab, setActiveTab] = useState<"transaction" | "transfer">("transaction");
+  const [filters] = useState<Filters>({
+    jenis: "",
+    akun_id: "",
+    kategori_id: "",
+    tanggal_dari: "",
+    tanggal_sampai: "",
   });
   const [error, setError] = useState<string | null>(null);
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; transaction: Transaction | null }>({ open: false, transaction: null });
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    transaction: Transaction | null;
+  }>({ open: false, transaction: null });
 
-  const [formData, setFormData] = useState<TransactionFormData>({
-    akun_id: '',
-    kategori_id: '',
-    jenis: 'pengeluaran',
-    nominal: 0,
-    mata_uang: 'IDR',
-    tanggal_transaksi: new Date().toISOString().split('T')[0],
-    catatan: ''
-  });
-
-  const [transferData, setTransferData] = useState<TransferFormData>({
-    akun_asal_id: '',
-    akun_tujuan_id: '',
-    nominal: 0,
-    mata_uang: 'IDR',
-    tanggal_transaksi: new Date().toISOString().split('T')[0],
-    catatan: ''
-  });
+  const [formData, setFormData] = useState<TransactionFormData>(INITIAL_TRANSACTION_FORM);
+  const [transferData, setTransferData] = useState<TransferFormData>(getInitialTransferForm());
 
   const { currentTenant } = useTenant();
   const { user } = useAuth();
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (currentTenant) {
-      loadData();
-    }
-  }, [currentTenant]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async (): Promise<void> => {
     if (!currentTenant) return;
-    
+
     try {
       setIsLoading(true);
       setError(null);
-      
-      const [transactionsRes, accountsRes, categoriesRes] = await Promise.all([
-        apiClient.transaksi.list({ tenant_id: currentTenant, ...filters }).catch(() => ({ transactions: [] })),
-        apiClient.akun.list({ tenant_id: currentTenant }).catch(() => ({ akun: [] })),
-        apiClient.kategori.list({ tenant_id: currentTenant, include_system: true }).catch(() => ({ kategori: [] }))
+
+      const [transactionsRes, accountsRes, categoriesRes, goalsRes] = await Promise.all([
+        apiClient.transaksi
+          .list({ tenant_id: currentTenant, ...filters })
+          .catch(() => ({ transactions: [] })),
+        apiClient.akun
+          .list({ tenant_id: currentTenant })
+          .catch(() => ({ akun: [] })),
+        apiClient.kategori
+          .list({ tenant_id: currentTenant, include_system: true })
+          .catch(() => ({ kategori: [] })),
+        apiClient.tujuan
+          .list({ tenant_id: currentTenant })
+          .catch(() => ({ tujuan: [] })),
       ]);
-      
-      setTransactions(transactionsRes.transactions || []);
-      setAccounts(accountsRes.akun || []);
+
+      setTransactions(transactionsRes.transaksi || []);
+      const accountsData = accountsRes.akun || accountsRes.accounts || [];
+      setAccounts(Array.isArray(accountsData) ? accountsData : []);
       setCategories(categoriesRes.kategori || []);
-    } catch (error: any) {
-      console.error('Failed to load data:', error);
-      setError(error.message || "Terjadi kesalahan saat memuat data");
+      const goalsData = goalsRes.tujuan || [];
+      setGoals(Array.isArray(goalsData) ? goalsData : []);
+    } catch (error) {
+      console.error("Failed to load data:", error);
+      const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan saat memuat data";
+      setError(errorMessage);
       toast({
         title: "Gagal memuat data",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan saat memuat data",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentTenant, filters, toast]);
 
-  const handleSubmitTransaction = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (currentTenant) {
+      loadData();
+    }
+  }, [loadData]);
+
+  const handleSubmitTransaction = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (!currentTenant || !user) return;
 
     setIsSubmitting(true);
     try {
+      const submitData = {
+        ...formData,
+        catatan: formData.catatan || undefined,
+      };
+
       if (editingTransaction) {
         await apiClient.transaksi.update({
           id: editingTransaction.id,
-          ...formData
+          ...submitData,
         });
         toast({
           title: "Transaksi berhasil diperbarui",
@@ -155,19 +224,19 @@ export default function TransactionsPage() {
         await apiClient.transaksi.create({
           tenant_id: currentTenant,
           pengguna_id: user.id,
-          ...formData
+          ...submitData,
         });
         toast({
           title: "Transaksi berhasil ditambahkan",
           description: "Transaksi baru telah dibuat",
         });
       }
-      
+
       setIsDialogOpen(false);
       resetForm();
-      loadData();
-    } catch (error: any) {
-      console.error('Failed to save transaction:', error);
+      await loadData();
+    } catch (error) {
+      console.error("Failed to save transaction:", error);
       toast({
         title: editingTransaction ? "Gagal memperbarui transaksi" : "Gagal menambah transaksi",
         description: error instanceof Error ? error.message : "Terjadi kesalahan saat menyimpan data",
@@ -178,28 +247,38 @@ export default function TransactionsPage() {
     }
   };
 
-  const handleSubmitTransfer = async (e: React.FormEvent) => {
+  const handleSubmitTransfer = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (!currentTenant || !user) return;
 
     setIsSubmitting(true);
     try {
+      const submitData = {
+        ...transferData,
+        catatan: transferData.catatan || undefined,
+      };
+
       await apiClient.transaksi.createTransfer({
         tenant_id: currentTenant,
         pengguna_id: user.id,
-        ...transferData
+        ...submitData,
       });
+
+      // Check if destination is a goal
+      const isGoalTransfer = goals.some(goal => goal.id === transferData.akun_tujuan_id);
       
       toast({
         title: "Transfer berhasil",
-        description: "Transfer antar akun telah dibuat",
+        description: isGoalTransfer 
+          ? "Transfer ke tujuan tabungan berhasil, kontribusi telah ditambahkan"
+          : "Transfer antar akun telah dibuat",
       });
-      
+
       setIsDialogOpen(false);
       resetForm();
-      loadData();
-    } catch (error: any) {
-      console.error('Failed to create transfer:', error);
+      await loadData();
+    } catch (error) {
+      console.error("Failed to create transfer:", error);
       toast({
         title: "Gagal membuat transfer",
         description: error instanceof Error ? error.message : "Terjadi kesalahan saat membuat transfer",
@@ -210,34 +289,44 @@ export default function TransactionsPage() {
     }
   };
 
-  const handleEdit = (transaction: Transaction) => {
+  const handleEdit = (transaction: Transaction): void => {
     setEditingTransaction(transaction);
+    
+    let dateValue = "";
+    if (transaction.tanggal_transaksi) {
+      dateValue = typeof transaction.tanggal_transaksi === 'string' 
+        ? transaction.tanggal_transaksi.split("T")[0] 
+        : new Date(transaction.tanggal_transaksi).toISOString().split("T")[0];
+    }
+    
     setFormData({
       akun_id: transaction.akun_id,
-      kategori_id: transaction.kategori_id || '',
-      jenis: transaction.jenis === 'transfer' ? 'pengeluaran' : transaction.jenis,
+      kategori_id: transaction.kategori_id || "",
+      jenis: transaction.jenis === "transfer" ? "pengeluaran" : transaction.jenis,
       nominal: transaction.nominal,
       mata_uang: transaction.mata_uang,
-      tanggal_transaksi: transaction.tanggal_transaksi.split('T')[0],
-      catatan: transaction.catatan || ''
+      tanggal_transaksi: dateValue,
+      catatan: transaction.catatan || "",
     });
-    setActiveTab('transaction');
+    setActiveTab("transaction");
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (): Promise<void> => {
     if (!deleteDialog.transaction) return;
 
     try {
-      await apiClient.transaksi.deleteTransaksi({ id: deleteDialog.transaction.id });
+      await apiClient.transaksi.deleteTransaksi({
+        id: deleteDialog.transaction.id,
+      });
       toast({
         title: "Transaksi berhasil dihapus",
         description: "Transaksi telah dihapus dari sistem",
       });
       setDeleteDialog({ open: false, transaction: null });
-      loadData();
-    } catch (error: any) {
-      console.error('Failed to delete transaction:', error);
+      await loadData();
+    } catch (error) {
+      console.error("Failed to delete transaction:", error);
       toast({
         title: "Gagal menghapus transaksi",
         description: error instanceof Error ? error.message : "Terjadi kesalahan saat menghapus transaksi",
@@ -246,69 +335,57 @@ export default function TransactionsPage() {
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      akun_id: '',
-      kategori_id: '',
-      jenis: 'pengeluaran',
-      nominal: 0,
-      mata_uang: 'IDR',
-      tanggal_transaksi: new Date().toISOString().split('T')[0],
-      catatan: ''
-    });
-    setTransferData({
-      akun_asal_id: '',
-      akun_tujuan_id: '',
-      nominal: 0,
-      mata_uang: 'IDR',
-      tanggal_transaksi: new Date().toISOString().split('T')[0],
-      catatan: ''
-    });
+  const resetForm = (): void => {
+    setFormData(INITIAL_TRANSACTION_FORM);
+    setTransferData(getInitialTransferForm());
     setEditingTransaction(null);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR'
-    }).format(amount);
-  };
-
-  const getTransactionIcon = (type: string) => {
+  const getTransactionIcon = (type: TransactionType): JSX.Element => {
     switch (type) {
-      case 'pemasukan':
+      case "pemasukan":
         return <ArrowDownLeft className="h-4 w-4 text-green-600" />;
-      case 'pengeluaran':
+      case "pengeluaran":
         return <ArrowUpRight className="h-4 w-4 text-red-600" />;
-      case 'transfer':
+      case "transfer":
         return <ArrowRightLeft className="h-4 w-4 text-blue-600" />;
       default:
         return <ArrowUpRight className="h-4 w-4" />;
     }
   };
 
-  const getAccountName = (accountId: string) => {
-    const account = accounts.find(a => a.id === accountId);
-    return account?.nama_akun || 'Unknown Account';
+  const getAccountName = (accountId: string): string => {
+    const account = accounts.find((a) => a.id === accountId);
+    return account?.nama_akun || "Unknown Account";
   };
 
-  const getCategoryName = (categoryId?: string) => {
-    if (!categoryId) return '-';
-    const category = categories.find(c => c.id === categoryId);
-    return category?.nama_kategori || 'Unknown Category';
+  const getCategoryName = (categoryId?: string): string => {
+    if (!categoryId) return "-";
+    const category = categories.find((c) => c.id === categoryId);
+    return category?.nama_kategori || "Unknown Category";
   };
 
-  const filteredCategories = Array.isArray(categories) ? categories.filter(c => {
-    // Check if category has jenis property, if not, include all categories
+  const filteredCategories = categories.filter((c) => {
     return !c.jenis || c.jenis === formData.jenis;
-  }) : [];
+  });
+
+  const handleDialogClose = (open: boolean): void => {
+    setIsDialogOpen(open);
+    if (!open) resetForm();
+  };
+
+  const handleDeleteDialogChange = (open: boolean): void => {
+    setDeleteDialog({ open, transaction: null });
+  };
 
   if (error) {
     return (
       <div className="space-y-6">
         <div className="text-center py-8">
           <p className="text-red-600">Error: {error}</p>
-          <Button onClick={loadData} className="mt-4">Coba Lagi</Button>
+          <Button onClick={loadData} className="mt-4">
+            Coba Lagi
+          </Button>
         </div>
       </div>
     );
@@ -319,297 +396,391 @@ export default function TransactionsPage() {
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Transaksi</h1>
-            <p className="text-gray-600 text-sm sm:text-base">Kelola semua transaksi keuangan Anda</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              Transaksi
+            </h1>
+            <p className="text-gray-600 text-sm sm:text-base">
+              Kelola semua transaksi keuangan Anda
+            </p>
           </div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) resetForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button className="w-full sm:w-auto">
-              <Plus className="mr-2 h-4 w-4" />
-              Tambah Transaksi
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md mx-4">
-            <DialogHeader>
-              <DialogTitle>{editingTransaction ? 'Edit Transaksi' : 'Tambah Transaksi Baru'}</DialogTitle>
-              <DialogDescription>
-                {editingTransaction ? 'Perbarui informasi transaksi' : 'Buat transaksi atau transfer baru'}
-              </DialogDescription>
-            </DialogHeader>
-            
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="transaction">Transaksi</TabsTrigger>
-                <TabsTrigger value="transfer" disabled={!!editingTransaction}>Transfer</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="transaction">
-                <form onSubmit={handleSubmitTransaction} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="jenis">Jenis Transaksi</Label>
-                    <Select value={formData.jenis} onValueChange={(value: 'pemasukan' | 'pengeluaran') => setFormData(prev => ({ ...prev, jenis: value, kategori_id: '' }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih jenis" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pemasukan">Pemasukan</SelectItem>
-                        <SelectItem value="pengeluaran">Pengeluaran</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+            <DialogTrigger asChild>
+              <Button className="w-full sm:w-auto">
+                <Plus className="mr-2 h-4 w-4" />
+                Tambah Transaksi
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingTransaction ? "Edit Transaksi" : "Tambah Transaksi Baru"}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingTransaction ? "Perbarui informasi transaksi" : "Buat transaksi atau transfer baru"}
+                </DialogDescription>
+              </DialogHeader>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="akun_id">Akun</Label>
-                    <Select value={formData.akun_id} onValueChange={(value) => setFormData(prev => ({ ...prev, akun_id: value }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih akun" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {accounts.map(account => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.nama_akun}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "transaction" | "transfer")}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="transaction">Transaksi</TabsTrigger>
+                  <TabsTrigger value="transfer" disabled={!!editingTransaction}>
+                    Transfer
+                  </TabsTrigger>
+                </TabsList>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="kategori_id">Kategori</Label>
-                    <Select value={formData.kategori_id} onValueChange={(value) => setFormData(prev => ({ ...prev, kategori_id: value }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih kategori" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredCategories.map(category => (
-                          <SelectItem key={category.id} value={category.id}>
-                            {category.nama_kategori}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="nominal">Nominal</Label>
-                    <Input
-                      id="nominal"
-                      type="number"
-                      placeholder="0"
-                      value={formData.nominal}
-                      onChange={(e) => setFormData(prev => ({ ...prev, nominal: parseFloat(e.target.value) || 0 }))}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="tanggal_transaksi">Tanggal</Label>
-                    <Input
-                      id="tanggal_transaksi"
-                      type="date"
-                      value={formData.tanggal_transaksi}
-                      onChange={(e) => setFormData(prev => ({ ...prev, tanggal_transaksi: e.target.value }))}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="catatan">Catatan (Opsional)</Label>
-                    <Input
-                      id="catatan"
-                      placeholder="Deskripsi transaksi"
-                      value={formData.catatan}
-                      onChange={(e) => setFormData(prev => ({ ...prev, catatan: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="flex gap-2 pt-4">
-                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
-                      Batal
-                    </Button>
-                    <Button type="submit" disabled={isSubmitting} className="flex-1">
-                      {isSubmitting ? (
-                        <>
-                          <LoadingSpinner size="sm" className="mr-2" />
-                          Menyimpan...
-                        </>
-                      ) : (
-                        editingTransaction ? 'Perbarui' : 'Tambah'
-                      )}
-                    </Button>
-                  </div>
-                </form>
-              </TabsContent>
-              
-              <TabsContent value="transfer">
-                <form onSubmit={handleSubmitTransfer} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="akun_asal_id">Akun Asal</Label>
-                    <Select value={transferData.akun_asal_id} onValueChange={(value) => setTransferData(prev => ({ ...prev, akun_asal_id: value }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih akun asal" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {accounts.map(account => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.nama_akun}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="akun_tujuan_id">Akun Tujuan</Label>
-                    <Select value={transferData.akun_tujuan_id} onValueChange={(value) => setTransferData(prev => ({ ...prev, akun_tujuan_id: value }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih akun tujuan" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {accounts.filter(a => a.id !== transferData.akun_asal_id).map(account => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.nama_akun}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="transfer_nominal">Nominal</Label>
-                    <Input
-                      id="transfer_nominal"
-                      type="number"
-                      placeholder="0"
-                      value={transferData.nominal}
-                      onChange={(e) => setTransferData(prev => ({ ...prev, nominal: parseFloat(e.target.value) || 0 }))}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="transfer_tanggal">Tanggal</Label>
-                    <Input
-                      id="transfer_tanggal"
-                      type="date"
-                      value={transferData.tanggal_transaksi}
-                      onChange={(e) => setTransferData(prev => ({ ...prev, tanggal_transaksi: e.target.value }))}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="transfer_catatan">Catatan (Opsional)</Label>
-                    <Input
-                      id="transfer_catatan"
-                      placeholder="Deskripsi transfer"
-                      value={transferData.catatan}
-                      onChange={(e) => setTransferData(prev => ({ ...prev, catatan: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="flex gap-2 pt-4">
-                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
-                      Batal
-                    </Button>
-                    <Button type="submit" disabled={isSubmitting} className="flex-1">
-                      {isSubmitting ? (
-                        <>
-                          <LoadingSpinner size="sm" className="mr-2" />
-                          Memproses...
-                        </>
-                      ) : (
-                        'Transfer'
-                      )}
-                    </Button>
-                  </div>
-                </form>
-              </TabsContent>
-            </Tabs>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Daftar Transaksi</CardTitle>
-          <CardDescription>Semua transaksi dalam 30 hari terakhir</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <LoadingSpinner />
-            </div>
-          ) : transactions.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500">Belum ada transaksi. Tambahkan transaksi pertama Anda!</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {transactions.map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gray-100 rounded-lg">
-                      {getTransactionIcon(transaction.jenis)}
-                    </div>
-                    <div>
-                      <h3 className="font-medium">
-                        {transaction.jenis === 'transfer' ? 'Transfer' : getCategoryName(transaction.kategori_id)}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {getAccountName(transaction.akun_id)} • {new Date(transaction.tanggal_transaksi).toLocaleDateString('id-ID')}
-                      </p>
-                      {transaction.catatan && (
-                        <p className="text-sm text-gray-400">{transaction.catatan}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className={`font-medium ${
-                        transaction.jenis === 'pemasukan' ? 'text-green-600' : 
-                        transaction.jenis === 'pengeluaran' ? 'text-red-600' : 'text-blue-600'
-                      }`}>
-                        {transaction.jenis === 'pemasukan' ? '+' : transaction.jenis === 'pengeluaran' ? '-' : ''}
-                        {formatCurrency(transaction.nominal)}
-                      </p>
-                      <p className="text-sm text-gray-500 capitalize">{transaction.jenis}</p>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEdit(transaction)}
-                        disabled={transaction.jenis === 'transfer'}
+                <TabsContent value="transaction">
+                  <form onSubmit={handleSubmitTransaction} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="jenis">Jenis Transaksi</Label>
+                      <Select
+                        value={formData.jenis}
+                        onValueChange={(value: Exclude<TransactionType, "transfer">) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            jenis: value,
+                            kategori_id: "",
+                          }))
+                        }
                       >
-                        <Edit className="h-4 w-4" />
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih jenis" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pemasukan">Pemasukan</SelectItem>
+                          <SelectItem value="pengeluaran">Pengeluaran</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="akun_id">Akun</Label>
+                      <Select
+                        value={formData.akun_id}
+                        onValueChange={(value) =>
+                          setFormData((prev) => ({ ...prev, akun_id: value }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih akun" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {accounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id}>
+                              {account.nama_akun}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="kategori_id">Kategori</Label>
+                      <Select
+                        value={formData.kategori_id}
+                        onValueChange={(value) =>
+                          setFormData((prev) => ({ ...prev, kategori_id: value }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih kategori" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filteredCategories.map((category) => (
+                            <SelectItem key={category.id} value={category.id}>
+                              {category.nama_kategori}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="nominal">Nominal</Label>
+                      <CurrencyInput
+                        value={formData.nominal}
+                        onChange={(value) =>
+                          setFormData((prev) => ({ ...prev, nominal: value }))
+                        }
+                        placeholder="Masukkan nominal"
+                        required
+                        maxLength={12}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="tanggal_transaksi">Tanggal</Label>
+                      <Input
+                        id="tanggal_transaksi"
+                        type="date"
+                        value={formData.tanggal_transaksi}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            tanggal_transaksi: e.target.value,
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="catatan">Catatan (Opsional)</Label>
+                      <Input
+                        id="catatan"
+                        placeholder="Deskripsi transaksi"
+                        value={formData.catatan}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            catatan: e.target.value.slice(0, 100),
+                          }))
+                        }
+                        maxLength={100}
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsDialogOpen(false)}
+                        className="flex-1"
+                      >
+                        Batal
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDeleteDialog({ open: true, transaction })}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
+                      <Button type="submit" disabled={isSubmitting} className="flex-1">
+                        {isSubmitting ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                            Menyimpan...
+                          </>
+                        ) : editingTransaction ? (
+                          "Perbarui"
+                        ) : (
+                          "Tambah"
+                        )}
                       </Button>
                     </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
+                  </form>
+                </TabsContent>
+
+                <TabsContent value="transfer">
+                  <form onSubmit={handleSubmitTransfer} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="akun_asal_id">Akun Asal</Label>
+                      <Select
+                        value={transferData.akun_asal_id}
+                        onValueChange={(value) =>
+                          setTransferData((prev) => ({ ...prev, akun_asal_id: value }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih akun asal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {accounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id}>
+                              {account.nama_akun}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="akun_tujuan_id">Akun Tujuan</Label>
+                      <Select
+                        value={transferData.akun_tujuan_id}
+                        onValueChange={(value) =>
+                          setTransferData((prev) => ({ ...prev, akun_tujuan_id: value }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih akun tujuan" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {accounts
+                            .filter((a) => a.id !== transferData.akun_asal_id)
+                            .map((account) => (
+                              <SelectItem key={account.id} value={account.id}>
+                                {account.nama_akun}
+                              </SelectItem>
+                            ))}
+                          {goals.map((goal) => (
+                            <SelectItem key={goal.id} value={goal.id}>
+                              🎯 {goal.nama_tujuan}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="transfer_nominal">Nominal</Label>
+                      <CurrencyInput
+                        value={transferData.nominal}
+                        onChange={(value) =>
+                          setTransferData((prev) => ({ ...prev, nominal: value }))
+                        }
+                        placeholder="Masukkan nominal"
+                        required
+                        maxLength={12}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="transfer_tanggal">Tanggal</Label>
+                      <Input
+                        id="transfer_tanggal"
+                        type="date"
+                        value={transferData.tanggal_transaksi}
+                        onChange={(e) =>
+                          setTransferData((prev) => ({
+                            ...prev,
+                            tanggal_transaksi: e.target.value,
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="transfer_catatan">Catatan (Opsional)</Label>
+                      <Input
+                        id="transfer_catatan"
+                        placeholder="Deskripsi transfer"
+                        value={transferData.catatan}
+                        onChange={(e) =>
+                          setTransferData((prev) => ({
+                            ...prev,
+                            catatan: e.target.value.slice(0, 100),
+                          }))
+                        }
+                        maxLength={100}
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsDialogOpen(false)}
+                        className="flex-1"
+                      >
+                        Batal
+                      </Button>
+                      <Button type="submit" disabled={isSubmitting} className="flex-1">
+                        {isSubmitting ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                            Memproses...
+                          </>
+                        ) : (
+                          "Transfer"
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </TabsContent>
+              </Tabs>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Daftar Transaksi</CardTitle>
+            <CardDescription>Semua transaksi dalam 30 hari terakhir</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <TransactionSkeleton key={i} />
+                ))}
+              </div>
+            ) : transactions.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">
+                  Belum ada transaksi. Tambahkan transaksi pertama Anda!
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {transactions.map((transaction) => {
+                  const colors = getTransactionColor(transaction.jenis);
+                  const isTransfer = transaction.jenis === "transfer";
+                  const isIncome = transaction.jenis === "pemasukan";
+                  const isExpense = transaction.jenis === "pengeluaran";
+
+                  return (
+                    <div
+                      key={transaction.id}
+                      className={`flex items-center justify-between p-4 rounded-lg border-l-4 ${colors.border} ${colors.bg} hover:shadow-md transition-shadow`}
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className={`p-2 rounded-lg ${colors.icon}`}>
+                          {getTransactionIcon(transaction.jenis)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-gray-900 truncate">
+                            {isTransfer ? "Transfer" : getCategoryName(transaction.kategori_id)}
+                          </h3>
+                          <p className="text-sm text-gray-600 truncate">
+                            {getAccountName(transaction.akun_id)} •{" "}
+                            {new Date(transaction.tanggal_transaksi).toLocaleDateString("id-ID")}
+                          </p>
+                          {transaction.catatan && (
+                            <p className="text-sm text-gray-500 truncate">
+                              {transaction.catatan}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                        <div className="text-right">
+                          <p className={`font-semibold text-sm sm:text-base ${colors.text}`}>
+                            {isIncome ? "+" : isExpense ? "-" : ""}
+                            {safeFormatCurrency(transaction.nominal)}
+                          </p>
+                          <p className={`text-xs capitalize ${colors.light}`}>
+                            {transaction.jenis}
+                          </p>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(transaction)}
+                            disabled={isTransfer}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteDialog({ open: true, transaction })}
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-100"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
         </Card>
-        
+
         <ConfirmDialog
-        open={deleteDialog.open}
-        onOpenChange={(open) => setDeleteDialog({ open, transaction: null })}
-        title="Hapus Transaksi"
-        description={`Apakah Anda yakin ingin menghapus transaksi ini? Tindakan ini tidak dapat dibatalkan.`}
-        onConfirm={handleDelete}
+          open={deleteDialog.open}
+          onOpenChange={handleDeleteDialogChange}
+          title="Hapus Transaksi"
+          description="Apakah Anda yakin ingin menghapus transaksi ini? Tindakan ini tidak dapat dibatalkan."
+          onConfirm={handleDelete}
         />
       </div>
     </div>

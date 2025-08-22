@@ -57,6 +57,11 @@ export const create = api<CreateTransaksiRequest, Transaksi>(
     if (req.nominal <= 0) {
       throw new Error("Amount must be positive");
     }
+    
+    // Validate maximum amount (1 billion IDR)
+    if (req.nominal > 1000000000) {
+      throw new Error("Amount exceeds maximum limit");
+    }
     // Start transaction
     const tx = await transaksiDB.begin();
 
@@ -93,7 +98,9 @@ export const create = api<CreateTransaksiRequest, Transaksi>(
         transaksi.split_kategori = splitKategori;
       }
 
-      // Update account balance via akun service before commit
+      await tx.commit();
+
+      // Update account balance via akun service after successful commit
       if (transaksi.jenis === "pemasukan") {
         await updateBalance({
           akun_id: req.akun_id,
@@ -107,8 +114,6 @@ export const create = api<CreateTransaksiRequest, Transaksi>(
           operation: "subtract"
         });
       }
-
-      await tx.commit();
 
       // Convert back to normal numbers
       return {

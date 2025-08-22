@@ -4,6 +4,7 @@ import { Transaksi } from "./create";
 import { SQLDatabase } from "encore.dev/storage/sqldb";
 
 const akunDB = SQLDatabase.named("akun");
+const tujuanDB = SQLDatabase.named("tujuan");
 
 export interface CreateTransferRequest {
   tenant_id: string;
@@ -48,37 +49,66 @@ export const createTransfer = api<CreateTransferRequest, Transfer>(
         throw new Error("Failed to create outgoing transaction");
       }
 
-      // Create incoming transaction
-      const transaksiMasuk = await tx.queryRow<Transaksi>`
-        INSERT INTO transaksi (tenant_id, akun_id, jenis, nominal, mata_uang, tanggal_transaksi, catatan, pengguna_id)
-        VALUES (${req.tenant_id}, ${
-        req.akun_tujuan_id
-      }, 'transfer', ${nominalCents}, ${req.mata_uang || "IDR"}, ${
-        req.tanggal_transaksi
-      }, ${req.catatan}, ${req.pengguna_id})
-        RETURNING id, tenant_id, akun_id, kategori_id, jenis, nominal, mata_uang, tanggal_transaksi, catatan, pengguna_id, transaksi_berulang_id, dibuat_pada, diubah_pada
-      `;
+      // Check if destination is a savings goal
+      const isGoal = await tujuanDB.queryRow`SELECT id FROM tujuan_tabungan WHERE id = ${req.akun_tujuan_id}`;
+      
+      let transaksiMasuk: Transaksi;
+      let transfer: { id: string; dibuat_pada: Date };
+      
+      if (isGoal) {
+        // Create contribution to savings goal
+        await tujuanDB.exec`
+          INSERT INTO kontribusi_tujuan (tujuan_tabungan_id, transaksi_id, nominal_kontribusi, tanggal_kontribusi)
+          VALUES (${req.akun_tujuan_id}, ${transaksiKeluar.id}, ${nominalCents}, ${req.tanggal_transaksi})
+        `;
+        
+        // Create a dummy incoming transaction for consistency
+        transaksiMasuk = {
+          ...transaksiKeluar,
+          id: `goal-${req.akun_tujuan_id}`,
+          akun_id: req.akun_tujuan_id,
+        };
+        
+        transfer = {
+          id: `transfer-to-goal-${Date.now()}`,
+          dibuat_pada: new Date(),
+        };
+        
+        // Only deduct from source account
+        await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini - ${nominalCents} WHERE id = ${req.akun_asal_id}`;
+      } else {
+        // Regular account transfer
+        transaksiMasuk = await tx.queryRow<Transaksi>`
+          INSERT INTO transaksi (tenant_id, akun_id, jenis, nominal, mata_uang, tanggal_transaksi, catatan, pengguna_id)
+          VALUES (${req.tenant_id}, ${
+          req.akun_tujuan_id
+        }, 'transfer', ${nominalCents}, ${req.mata_uang || "IDR"}, ${
+          req.tanggal_transaksi
+        }, ${req.catatan}, ${req.pengguna_id})
+          RETURNING id, tenant_id, akun_id, kategori_id, jenis, nominal, mata_uang, tanggal_transaksi, catatan, pengguna_id, transaksi_berulang_id, dibuat_pada, diubah_pada
+        `;
 
-      if (!transaksiMasuk) {
-        throw new Error("Failed to create incoming transaction");
+        if (!transaksiMasuk) {
+          throw new Error("Failed to create incoming transaction");
+        }
+
+        // Create transfer record
+        const transferRecord = await tx.queryRow<{ id: string; dibuat_pada: Date }>`
+          INSERT INTO transfer_antar_akun (transaksi_keluar_id, transaksi_masuk_id)
+          VALUES (${transaksiKeluar.id}, ${transaksiMasuk.id})
+          RETURNING id, dibuat_pada
+        `;
+
+        if (!transferRecord) {
+          throw new Error("Failed to create transfer record");
+        }
+        
+        transfer = transferRecord;
+
+        // Update both account balances
+        await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini - ${nominalCents} WHERE id = ${req.akun_asal_id}`;
+        await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini + ${nominalCents} WHERE id = ${req.akun_tujuan_id}`;
       }
-
-      // Create transfer record
-      const transfer = await tx.queryRow<{ id: string; dibuat_pada: Date }>`
-        INSERT INTO transfer_antar_akun (transaksi_keluar_id, transaksi_masuk_id)
-        VALUES (${transaksiKeluar.id}, ${transaksiMasuk.id})
-        RETURNING id, dibuat_pada
-      `;
-
-      if (!transfer) {
-        throw new Error("Failed to create transfer record");
-      }
-
-      // Update account balances manually before commit
-      // Deduct from source account
-      await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini - ${nominalCents} WHERE id = ${req.akun_asal_id}`;
-      // Add to destination account
-      await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini + ${nominalCents} WHERE id = ${req.akun_tujuan_id}`;
 
       await tx.commit();
 

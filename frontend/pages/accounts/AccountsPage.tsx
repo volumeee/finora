@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,14 +9,19 @@ import { useToast } from '@/components/ui/use-toast';
 import { Plus, Edit, Trash2, Wallet, CreditCard, PiggyBank } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
 import apiClient from '@/lib/api-client';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { CardSkeleton } from '@/components/ui/skeletons';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { CurrencyInput } from '@/components/ui/currency-input';
+import { formatCurrency } from '@/lib/format';
+
+type AccountType = 'kas' | 'bank' | 'e_wallet' | 'kartu_kredit' | 'pinjaman' | 'aset';
+type Currency = 'IDR' | 'USD' | 'EUR';
 
 interface Account {
   id: string;
   tenant_id: string;
   nama_akun: string;
-  jenis: 'kas' | 'bank' | 'e_wallet' | 'kartu_kredit' | 'pinjaman' | 'aset';
+  jenis: AccountType;
   saldo_awal: number;
   saldo_terkini: number;
   mata_uang: string;
@@ -27,47 +32,57 @@ interface Account {
 
 interface AccountFormData {
   nama_akun: string;
-  jenis: 'kas' | 'bank' | 'e_wallet' | 'kartu_kredit' | 'pinjaman' | 'aset';
+  jenis: AccountType;
   saldo_awal: number;
-  mata_uang: string;
+  mata_uang: Currency;
   keterangan: string;
 }
 
-const accountTypes = [
+interface AccountTypeOption {
+  value: AccountType;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const accountTypes: AccountTypeOption[] = [
   { value: 'kas', label: 'Kas/Tunai', icon: PiggyBank },
   { value: 'bank', label: 'Bank', icon: CreditCard },
   { value: 'e_wallet', label: 'E-Wallet', icon: Wallet },
   { value: 'kartu_kredit', label: 'Kartu Kredit', icon: CreditCard },
   { value: 'pinjaman', label: 'Pinjaman', icon: CreditCard },
   { value: 'aset', label: 'Aset/Investasi', icon: PiggyBank }
-];
+] as const;
 
-export default function AccountsPage() {
+const INITIAL_FORM_DATA: AccountFormData = {
+  nama_akun: '',
+  jenis: 'bank',
+  saldo_awal: 0,
+  mata_uang: 'IDR',
+  keterangan: ''
+};
+
+const safeFormatCurrency = (value: number | undefined | null): string => {
+  const numValue = Number(value);
+  return Number.isFinite(numValue) ? formatCurrency(numValue) : formatCurrency(0);
+};
+
+export default function AccountsPage(): JSX.Element {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; account: Account | null }>({ open: false, account: null });
-  const [formData, setFormData] = useState<AccountFormData>({
-    nama_akun: '',
-    jenis: 'bank',
-    saldo_awal: 0,
-    mata_uang: 'IDR',
-    keterangan: ''
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; account: Account | null }>({ 
+    open: false, 
+    account: null 
   });
+  const [formData, setFormData] = useState<AccountFormData>(INITIAL_FORM_DATA);
 
   const { currentTenant } = useTenant();
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (currentTenant) {
-      loadAccounts();
-    }
-  }, [currentTenant]);
-
-  const loadAccounts = async () => {
+  const loadAccounts = useCallback(async (): Promise<void> => {
     if (!currentTenant) return;
     
     try {
@@ -76,30 +91,42 @@ export default function AccountsPage() {
       const response = await apiClient.akun.list({ tenant_id: currentTenant });
       const accountsData = response?.akun || [];
       setAccounts(Array.isArray(accountsData) ? accountsData : []);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to load accounts:', error);
-      setError(error instanceof Error ? error.message : "Terjadi kesalahan saat memuat data akun");
+      const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan saat memuat data akun";
+      setError(errorMessage);
       setAccounts([]);
       toast({
         title: "Gagal memuat akun",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan saat memuat data akun",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentTenant, toast]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (currentTenant) {
+      loadAccounts();
+    }
+  }, [loadAccounts]);
+
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (!currentTenant) return;
 
     setIsSubmitting(true);
     try {
+      const submitData = {
+        ...formData,
+        keterangan: formData.keterangan || undefined,
+      };
+
       if (editingAccount) {
         await apiClient.akun.update({
           id: editingAccount.id,
-          ...formData
+          ...submitData
         });
         toast({
           title: "Akun berhasil diperbarui",
@@ -108,7 +135,7 @@ export default function AccountsPage() {
       } else {
         await apiClient.akun.create({
           tenant_id: currentTenant,
-          ...formData
+          ...submitData
         });
         toast({
           title: "Akun berhasil ditambahkan",
@@ -118,8 +145,8 @@ export default function AccountsPage() {
       
       setIsDialogOpen(false);
       resetForm();
-      loadAccounts();
-    } catch (error: any) {
+      await loadAccounts();
+    } catch (error) {
       console.error('Failed to save account:', error);
       toast({
         title: editingAccount ? "Gagal memperbarui akun" : "Gagal menambah akun",
@@ -131,19 +158,19 @@ export default function AccountsPage() {
     }
   };
 
-  const handleEdit = (account: Account) => {
+  const handleEdit = (account: Account): void => {
     setEditingAccount(account);
     setFormData({
       nama_akun: account.nama_akun,
       jenis: account.jenis,
       saldo_awal: account.saldo_awal,
-      mata_uang: account.mata_uang,
+      mata_uang: account.mata_uang as Currency,
       keterangan: account.keterangan || ''
     });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (): Promise<void> => {
     if (!deleteDialog.account) return;
 
     try {
@@ -153,8 +180,8 @@ export default function AccountsPage() {
         description: "Akun telah dihapus dari sistem",
       });
       setDeleteDialog({ open: false, account: null });
-      loadAccounts();
-    } catch (error: any) {
+      await loadAccounts();
+    } catch (error) {
       console.error('Failed to delete account:', error);
       toast({
         title: "Gagal menghapus akun",
@@ -164,28 +191,28 @@ export default function AccountsPage() {
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      nama_akun: '',
-      jenis: 'kas',
-      saldo_awal: 0,
-      mata_uang: 'IDR',
-      keterangan: ''
-    });
+  const resetForm = (): void => {
+    setFormData(INITIAL_FORM_DATA);
     setEditingAccount(null);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR'
-    }).format(amount);
-  };
-
-  const getAccountIcon = (type: string) => {
+  const getAccountIcon = (type: AccountType): JSX.Element => {
     const accountType = accountTypes.find(t => t.value === type);
     const Icon = accountType?.icon || Wallet;
     return <Icon className="h-5 w-5" />;
+  };
+
+  const getAccountTypeLabel = (type: AccountType): string => {
+    return accountTypes.find(t => t.value === type)?.label || 'Unknown';
+  };
+
+  const handleDialogClose = (open: boolean): void => {
+    setIsDialogOpen(open);
+    if (!open) resetForm();
+  };
+
+  const handleDeleteDialogChange = (open: boolean): void => {
+    setDeleteDialog({ open, account: null });
   };
 
   if (error) {
@@ -202,22 +229,19 @@ export default function AccountsPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Akun</h1>
-            <p className="text-gray-600 text-sm sm:text-base">Kelola akun bank, e-wallet, dan aset Anda</p>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">Akun</h1>
+            <p className="text-gray-600 text-sm sm:text-base truncate">Kelola akun bank, e-wallet, dan aset Anda</p>
           </div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) resetForm();
-        }}>
+        <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               Tambah Akun
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md mx-4">
+          <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingAccount ? 'Edit Akun' : 'Tambah Akun Baru'}</DialogTitle>
               <DialogDescription>
@@ -238,7 +262,7 @@ export default function AccountsPage() {
               
               <div className="space-y-2">
                 <Label htmlFor="jenis">Jenis Akun</Label>
-                <Select value={formData.jenis} onValueChange={(value: any) => setFormData(prev => ({ ...prev, jenis: value }))}>
+                <Select value={formData.jenis} onValueChange={(value: AccountType) => setFormData(prev => ({ ...prev, jenis: value }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Pilih jenis akun" />
                   </SelectTrigger>
@@ -257,19 +281,18 @@ export default function AccountsPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="saldo_awal">Saldo Awal</Label>
-                <Input
-                  id="saldo_awal"
-                  type="number"
-                  placeholder="0"
+                <CurrencyInput
                   value={formData.saldo_awal}
-                  onChange={(e) => setFormData(prev => ({ ...prev, saldo_awal: parseFloat(e.target.value) || 0 }))}
+                  onChange={(value) => setFormData(prev => ({ ...prev, saldo_awal: value }))}
+                  placeholder="Masukkan saldo awal"
                   required
+                  maxLength={12}
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="mata_uang">Mata Uang</Label>
-                <Select value={formData.mata_uang} onValueChange={(value) => setFormData(prev => ({ ...prev, mata_uang: value }))}>
+                <Select value={formData.mata_uang} onValueChange={(value: Currency) => setFormData(prev => ({ ...prev, mata_uang: value }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Pilih mata uang" />
                   </SelectTrigger>
@@ -287,7 +310,8 @@ export default function AccountsPage() {
                   id="keterangan"
                   placeholder="Deskripsi tambahan"
                   value={formData.keterangan}
-                  onChange={(e) => setFormData(prev => ({ ...prev, keterangan: e.target.value }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, keterangan: e.target.value.slice(0, 100) }))}
+                  maxLength={100}
                 />
               </div>
 
@@ -298,7 +322,7 @@ export default function AccountsPage() {
                 <Button type="submit" disabled={isSubmitting} className="flex-1">
                   {isSubmitting ? (
                     <>
-                      <LoadingSpinner size="sm" className="mr-2" />
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
                       Menyimpan...
                     </>
                   ) : (
@@ -318,52 +342,63 @@ export default function AccountsPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <LoadingSpinner />
+            <div className="space-y-3 sm:space-y-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <CardSkeleton key={i} />
+              ))}
             </div>
-          ) : !accounts || accounts.length === 0 ? (
+          ) : accounts.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-500">Belum ada akun. Tambahkan akun pertama Anda!</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {accounts?.map((account) => (
-                <div key={account.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg bg-white shadow-sm gap-4">
+            <div className="space-y-3 sm:space-y-4">
+              {accounts.map((account) => (
+                <div key={account.id} className="flex flex-col sm:flex-row sm:items-center p-3 sm:p-4 border rounded-lg bg-white shadow-sm gap-3 sm:gap-4 hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="p-2 bg-blue-100 rounded-lg flex-shrink-0">
                       {getAccountIcon(account.jenis)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="font-medium truncate">{account.nama_akun}</h3>
-                      <p className="text-sm text-gray-500">
-                        {accountTypes.find(t => t.value === account.jenis)?.label} • {account.mata_uang}
+                      <h3 className="font-medium text-sm sm:text-base truncate" title={account.nama_akun}>
+                        {account.nama_akun}
+                      </h3>
+                      <p className="text-xs sm:text-sm text-gray-500 truncate">
+                        {getAccountTypeLabel(account.jenis)} • {account.mata_uang}
                       </p>
                       {account.keterangan && (
-                        <p className="text-sm text-gray-400 truncate">{account.keterangan}</p>
+                        <p className="text-xs sm:text-sm text-gray-400 truncate" title={account.keterangan}>
+                          {account.keterangan}
+                        </p>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center justify-between sm:justify-end gap-3">
-                    <div className="text-left sm:text-right">
-                      <p className="font-medium">{formatCurrency(account.saldo_terkini)}</p>
-                      <p className="text-sm text-gray-500">Saldo Terkini</p>
-                      <p className="text-xs text-gray-400">Awal: {formatCurrency(account.saldo_awal)}</p>
+                  <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3">
+                    <div className="text-left sm:text-right min-w-0 flex-1 sm:flex-initial">
+                      <p className="font-medium text-sm sm:text-base truncate" title={safeFormatCurrency(account.saldo_terkini)}>
+                        {safeFormatCurrency(account.saldo_terkini)}
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-500">Saldo Terkini</p>
+                      <p className="text-xs text-gray-400 truncate" title={`Awal: ${safeFormatCurrency(account.saldo_awal)}`}>
+                        Awal: {safeFormatCurrency(account.saldo_awal)}
+                      </p>
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleEdit(account)}
+                        className="h-8 w-8 p-0"
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setDeleteDialog({ open: true, account })}
-                        className="text-red-600 hover:text-red-700"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-100 h-8 w-8 p-0"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                     </div>
                   </div>
@@ -376,7 +411,7 @@ export default function AccountsPage() {
         
         <ConfirmDialog
         open={deleteDialog.open}
-        onOpenChange={(open) => setDeleteDialog({ open, account: null })}
+        onOpenChange={handleDeleteDialogChange}
         title="Hapus Akun"
         description={`Apakah Anda yakin ingin menghapus akun "${deleteDialog.account?.nama_akun}"? Tindakan ini tidak dapat dibatalkan.`}
         onConfirm={handleDelete}

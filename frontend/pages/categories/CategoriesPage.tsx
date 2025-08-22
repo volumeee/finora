@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,10 +26,10 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Plus, Edit, Trash2, Folder, FolderOpen, Utensils, Car, ShoppingCart, Clapperboard, Receipt, Banknote, TrendingUp, HelpCircle, Home, Gamepad2, Shirt, Plane, Smartphone, Zap, DollarSign, Gift, Briefcase, Trophy, Target, Diamond, Wrench, Palette, Book, Coffee, Heart, Music, Camera, MapPin, ShoppingBag, CreditCard, Fuel, GraduationCap, Stethoscope, Dumbbell, Scissors, Hammer, PaintBucket } from "lucide-react";
+import { Plus, Edit, Trash2, Utensils, Car, ShoppingCart, Clapperboard, Receipt, Banknote, TrendingUp, HelpCircle, Home, Gamepad2, Shirt, Plane, Smartphone, Zap, DollarSign, Gift, Briefcase, Trophy, Target, Diamond, Wrench, Palette, Book, Coffee, Heart, Music, Camera, MapPin, ShoppingBag, CreditCard, Fuel, GraduationCap, Stethoscope, Dumbbell, Scissors, Hammer, PaintBucket } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import apiClient from "@/lib/api-client";
-import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import { CategorySkeleton } from "@/components/ui/skeletons";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 interface Category {
@@ -49,6 +49,11 @@ interface CategoryFormData {
   kategori_induk_id: string;
   ikon: string;
   warna: string;
+}
+
+interface IconOption {
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 const iconMap = {
@@ -89,17 +94,14 @@ const iconMap = {
   'scissors': Scissors,
   'hammer': Hammer,
   'paint-bucket': PaintBucket
-};
+} as const;
 
-const defaultIcons = Object.entries(iconMap).map(([name, icon]) => ({ name, icon }));
+type IconName = keyof typeof iconMap;
 
-const renderIcon = (iconName: string) => {
-  const IconComponent = iconMap[iconName as keyof typeof iconMap];
-  if (IconComponent) {
-    return <IconComponent className="h-4 w-4" />;
-  }
-  return iconName;
-};
+const defaultIcons: IconOption[] = Object.entries(iconMap).map(([name, icon]) => ({ 
+  name, 
+  icon 
+}));
 
 const defaultColors = [
   "#ef4444",
@@ -112,33 +114,39 @@ const defaultColors = [
   "#ec4899",
   "#6b7280",
   "#000000",
-];
+] as const;
 
-export default function CategoriesPage() {
+const INITIAL_FORM_DATA: CategoryFormData = {
+  nama_kategori: "",
+  kategori_induk_id: "",
+  ikon: "utensils",
+  warna: "#ef4444",
+};
+
+const renderIcon = (iconName: string): JSX.Element => {
+  const IconComponent = iconMap[iconName as IconName];
+  if (IconComponent) {
+    return <IconComponent className="h-4 w-4" />;
+  }
+  return <span>{iconName}</span>;
+};
+
+export default function CategoriesPage(): JSX.Element {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState("expense");
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; category: Category | null }>({ open: false, category: null });
-  const [formData, setFormData] = useState<CategoryFormData>({
-    nama_kategori: "",
-    kategori_induk_id: "",
-    ikon: "utensils",
-    warna: "#ef4444",
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; category: Category | null }>({ 
+    open: false, 
+    category: null 
   });
+  const [formData, setFormData] = useState<CategoryFormData>(INITIAL_FORM_DATA);
 
   const { currentTenant } = useTenant();
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (currentTenant) {
-      loadCategories();
-    }
-  }, [currentTenant]);
-
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async (): Promise<void> => {
     if (!currentTenant) return;
 
     try {
@@ -149,32 +157,40 @@ export default function CategoriesPage() {
       });
       const categoriesData = response?.kategori || response || [];
       setCategories(Array.isArray(categoriesData) ? categoriesData : []);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Failed to load categories:", error);
       setCategories([]);
       toast({
         title: "Gagal memuat kategori",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Terjadi kesalahan saat memuat data kategori",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat memuat data kategori",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentTenant, toast]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (currentTenant) {
+      loadCategories();
+    }
+  }, [loadCategories]);
+
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (!currentTenant) return;
 
     setIsSubmitting(true);
     try {
+      const submitData = {
+        ...formData,
+        kategori_induk_id: formData.kategori_induk_id || undefined,
+      };
+
       if (editingCategory) {
         await apiClient.kategori.update({
           id: editingCategory.id,
-          ...formData,
+          ...submitData,
         });
         toast({
           title: "Kategori berhasil diperbarui",
@@ -183,7 +199,7 @@ export default function CategoriesPage() {
       } else {
         await apiClient.kategori.create({
           tenant_id: currentTenant,
-          ...formData,
+          ...submitData,
         });
         toast({
           title: "Kategori berhasil ditambahkan",
@@ -193,17 +209,12 @@ export default function CategoriesPage() {
 
       setIsDialogOpen(false);
       resetForm();
-      loadCategories();
-    } catch (error: any) {
+      await loadCategories();
+    } catch (error) {
       console.error("Failed to save category:", error);
       toast({
-        title: editingCategory
-          ? "Gagal memperbarui kategori"
-          : "Gagal menambah kategori",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Terjadi kesalahan saat menyimpan data",
+        title: editingCategory ? "Gagal memperbarui kategori" : "Gagal menambah kategori",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat menyimpan data",
         variant: "destructive",
       });
     } finally {
@@ -211,7 +222,7 @@ export default function CategoriesPage() {
     }
   };
 
-  const handleEdit = (category: Category) => {
+  const handleEdit = (category: Category): void => {
     setEditingCategory(category);
     setFormData({
       nama_kategori: category.nama_kategori,
@@ -219,11 +230,10 @@ export default function CategoriesPage() {
       ikon: category.ikon || "utensils",
       warna: category.warna || "#ef4444",
     });
-
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (): Promise<void> => {
     if (!deleteDialog.category) return;
 
     try {
@@ -233,39 +243,40 @@ export default function CategoriesPage() {
         description: "Kategori telah dihapus dari sistem",
       });
       setDeleteDialog({ open: false, category: null });
-      loadCategories();
-    } catch (error: any) {
+      await loadCategories();
+    } catch (error) {
       console.error("Failed to delete category:", error);
       toast({
         title: "Gagal menghapus kategori",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Terjadi kesalahan saat menghapus kategori",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan saat menghapus kategori",
         variant: "destructive",
       });
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      nama_kategori: "",
-      kategori_induk_id: "",
-      ikon: "utensils",
-      warna: "#ef4444",
-    });
+  const resetForm = (): void => {
+    setFormData(INITIAL_FORM_DATA);
     setEditingCategory(null);
   };
 
-  const getParentCategories = () => {
+  const getParentCategories = (): Category[] => {
     return categories.filter((c) => !c.kategori_induk_id);
   };
 
-  const getSubCategories = (parentId: string) => {
+  const getSubCategories = (parentId: string): Category[] => {
     return categories.filter((c) => c.kategori_induk_id === parentId);
   };
 
-  const renderCategoryList = () => {
+  const handleDialogClose = (open: boolean): void => {
+    setIsDialogOpen(open);
+    if (!open) resetForm();
+  };
+
+  const handleDeleteDialogChange = (open: boolean): void => {
+    setDeleteDialog({ open, category: null });
+  };
+
+  const renderCategoryList = (): JSX.Element => {
     const parentCategories = getParentCategories();
 
     if (parentCategories.length === 0) {
@@ -283,17 +294,19 @@ export default function CategoriesPage() {
         {parentCategories.map((parent) => {
           const subCategories = getSubCategories(parent.id);
           return (
-            <div key={parent.id} className="border rounded-lg">
+            <div key={parent.id} className="border rounded-lg overflow-hidden">
               <div className="flex items-center justify-between p-3 sm:p-4">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm"
+                    className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0"
                     style={{ backgroundColor: parent.warna || "#6b7280" }}
                   >
                     {renderIcon(parent.ikon)}
                   </div>
-                  <div>
-                    <h3 className="font-medium">{parent.nama_kategori}</h3>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-medium text-sm sm:text-base truncate" title={parent.nama_kategori}>
+                      {parent.nama_kategori}
+                    </h3>
                     <div className="flex items-center gap-2 mt-1">
                       {parent.sistem_bawaan && (
                         <Badge variant="secondary" className="text-xs">
@@ -309,12 +322,12 @@ export default function CategoriesPage() {
                   </div>
                 </div>
                 {!parent.sistem_bawaan && (
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 flex-shrink-0">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleEdit(parent)}
-                      className="p-1 sm:p-2"
+                      className="h-8 w-8 p-0"
                     >
                       <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                     </Button>
@@ -322,7 +335,7 @@ export default function CategoriesPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => setDeleteDialog({ open: true, category: parent })}
-                      className="text-red-600 hover:text-red-700 p-1 sm:p-2"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-100 h-8 w-8 p-0"
                     >
                       <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                     </Button>
@@ -335,33 +348,33 @@ export default function CategoriesPage() {
                   {subCategories.map((sub) => (
                     <div
                       key={sub.id}
-                      className="flex items-center justify-between p-2 sm:p-3 pl-8 sm:pl-12 border-b last:border-b-0"
+                      className="flex items-center justify-between p-2 sm:p-3 pl-6 sm:pl-8 lg:pl-12 border-b last:border-b-0"
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                         <div
-                          className="w-6 h-6 rounded flex items-center justify-center text-white text-xs"
+                          className="w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center text-white text-xs flex-shrink-0"
                           style={{ backgroundColor: sub.warna || "#6b7280" }}
                         >
                           {renderIcon(sub.ikon)}
                         </div>
-                        <div>
-                          <span className="text-sm font-medium">
+                        <div className="min-w-0 flex-1">
+                          <span className="text-xs sm:text-sm font-medium truncate block" title={sub.nama_kategori}>
                             {sub.nama_kategori}
                           </span>
                           {sub.sistem_bawaan && (
-                            <Badge variant="secondary" className="text-xs ml-2">
+                            <Badge variant="secondary" className="text-xs mt-1">
                               System
                             </Badge>
                           )}
                         </div>
                       </div>
                       {!sub.sistem_bawaan && (
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 flex-shrink-0">
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleEdit(sub)}
-                            className="p-1"
+                            className="h-7 w-7 p-0"
                           >
                             <Edit className="h-3 w-3" />
                           </Button>
@@ -369,7 +382,7 @@ export default function CategoriesPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => setDeleteDialog({ open: true, category: sub })}
-                            className="text-red-600 hover:text-red-700 p-1"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-100 h-7 w-7 p-0"
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -389,18 +402,12 @@ export default function CategoriesPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Kategori</h1>
-            <p className="text-gray-600">Kelola kategori transaksi Anda</p>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">Kategori</h1>
+            <p className="text-gray-600 text-sm sm:text-base truncate">Kelola kategori transaksi Anda</p>
           </div>
-          <Dialog
-            open={isDialogOpen}
-            onOpenChange={(open) => {
-              setIsDialogOpen(open);
-              if (!open) resetForm();
-            }}
-          >
+          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
             <DialogTrigger asChild>
               <Button className="w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
@@ -408,7 +415,7 @@ export default function CategoriesPage() {
                 <span className="sm:hidden">Tambah</span>
               </Button>
             </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingCategory ? "Edit Kategori" : "Tambah Kategori Baru"}
@@ -430,9 +437,10 @@ export default function CategoriesPage() {
                   onChange={(e) =>
                     setFormData((prev) => ({
                       ...prev,
-                      nama_kategori: e.target.value,
+                      nama_kategori: e.target.value.slice(0, 50),
                     }))
                   }
+                  maxLength={50}
                   required
                 />
               </div>
@@ -468,19 +476,19 @@ export default function CategoriesPage() {
 
               <div className="space-y-2">
                 <Label>Ikon</Label>
-                <div className="grid grid-cols-8 gap-2 max-h-48 overflow-y-auto">
+                <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-40 sm:max-h-48 overflow-y-auto">
                   {defaultIcons.map((iconItem) => {
                     const IconComponent = iconItem.icon;
                     return (
                       <button
                         key={iconItem.name}
                         type="button"
-                        className={`p-2 rounded border hover:bg-gray-100 ${
+                        className={`p-1.5 sm:p-2 rounded border hover:bg-gray-100 transition-colors ${
                           formData.ikon === iconItem.name ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
                         }`}
                         onClick={() => setFormData(prev => ({ ...prev, ikon: iconItem.name }))}
                       >
-                        <IconComponent className="h-4 w-4" />
+                        <IconComponent className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                     );
                   })}
@@ -489,15 +497,15 @@ export default function CategoriesPage() {
 
               <div className="space-y-2">
                 <Label>Warna</Label>
-                <div className="grid grid-cols-10 gap-2">
+                <div className="grid grid-cols-8 sm:grid-cols-10 gap-2">
                   {defaultColors.map((color) => (
                     <button
                       key={color}
                       type="button"
-                      className={`w-8 h-8 rounded border-2 ${
+                      className={`w-6 h-6 sm:w-8 sm:h-8 rounded border-2 transition-all ${
                         formData.warna === color
-                          ? "border-gray-800"
-                          : "border-gray-200"
+                          ? "border-gray-800 scale-110"
+                          : "border-gray-200 hover:border-gray-400"
                       }`}
                       style={{ backgroundColor: color }}
                       onClick={() =>
@@ -524,7 +532,7 @@ export default function CategoriesPage() {
                 >
                   {isSubmitting ? (
                     <>
-                      <LoadingSpinner size="sm" className="mr-2" />
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
                       Menyimpan...
                     </>
                   ) : editingCategory ? (
@@ -539,15 +547,17 @@ export default function CategoriesPage() {
         </Dialog>
       </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Daftar Kategori</CardTitle>
-            <CardDescription>Semua kategori transaksi Anda</CardDescription>
+        <Card className="overflow-hidden">
+          <CardHeader className="px-4 sm:px-6">
+            <CardTitle className="text-base sm:text-lg truncate">Daftar Kategori</CardTitle>
+            <CardDescription className="text-sm truncate">Semua kategori transaksi Anda</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 sm:px-6">
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <LoadingSpinner />
+            <div className="space-y-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <CategorySkeleton key={i} />
+              ))}
             </div>
           ) : (
             renderCategoryList()
@@ -557,7 +567,7 @@ export default function CategoriesPage() {
         
         <ConfirmDialog
           open={deleteDialog.open}
-          onOpenChange={(open) => setDeleteDialog({ open, category: null })}
+          onOpenChange={handleDeleteDialogChange}
           title="Hapus Kategori"
           description={`Apakah Anda yakin ingin menghapus kategori "${deleteDialog.category?.nama_kategori}"? Tindakan ini tidak dapat dibatalkan.`}
           onConfirm={handleDelete}

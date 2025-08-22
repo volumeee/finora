@@ -1,102 +1,215 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Wallet, TrendingUp, Target, CreditCard, Plus, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
-import { useTenant } from '@/contexts/TenantContext';
-import { useAuth } from '@/contexts/AuthContext';
-import apiClient from '@/lib/api-client';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import {
+  Wallet,
+  TrendingUp,
+  Target,
+  CreditCard,
+  Plus,
+  ArrowUpRight,
+  ArrowDownLeft,
+  ArrowRightLeft,
+} from "lucide-react";
+import { useTenant } from "@/contexts/TenantContext";
+import { useAuth } from "@/contexts/AuthContext";
+import apiClient from "@/lib/api-client";
+import { useNavigate } from "react-router-dom";
+import { formatCurrency, getTransactionColor } from "@/lib/format";
+import {
+  StatsCardSkeleton,
+  TransactionSkeleton,
+  GoalCardSkeleton,
+  PageHeaderSkeleton,
+} from "@/components/ui/skeletons";
 
-export default function DashboardPage() {
-  const [stats, setStats] = useState({
-    totalBalance: 0,
-    monthlyIncome: 0,
-    monthlyExpense: 0,
-    accountsCount: 0,
-    goalsCount: 0,
-    completedGoals: 0
-  });
-  const [recentTransactions, setRecentTransactions] = useState([]);
-  const [goalProgress, setGoalProgress] = useState([]);
+interface DashboardStats {
+  totalBalance: number;
+  monthlyIncome: number;
+  monthlyExpense: number;
+  accountsCount: number;
+  goalsCount: number;
+  completedGoals: number;
+}
+
+interface Transaction {
+  id: string;
+  jenis: "pemasukan" | "pengeluaran" | "transfer" | "income" | "expense";
+  nominal: number;
+  tanggal_transaksi: string;
+  catatan?: string;
+  kategori_nama?: string;
+}
+
+interface Goal {
+  id: string;
+  nama_tujuan: string;
+  target_nominal: number;
+  nominal_terkumpul: number;
+  progress: number;
+}
+
+type TransactionType = Transaction["jenis"];
+
+const INITIAL_STATS: DashboardStats = {
+  totalBalance: 0,
+  monthlyIncome: 0,
+  monthlyExpense: 0,
+  accountsCount: 0,
+  goalsCount: 0,
+  completedGoals: 0,
+};
+
+const safeFormatCurrency = (value: number | undefined | null): string => {
+  const numValue = Number(value);
+  return Number.isFinite(numValue)
+    ? formatCurrency(numValue)
+    : formatCurrency(0);
+};
+
+const calculateProgress = (current: number, target: number): number => {
+  const validCurrent = Number.isFinite(current) && current >= 0 ? current : 0;
+  const validTarget = Number.isFinite(target) && target > 0 ? target : 1;
+  return Math.min((validCurrent / validTarget) * 100, 100);
+};
+
+export default function DashboardPage(): JSX.Element {
+  const [stats, setStats] = useState<DashboardStats>(INITIAL_STATS);
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>(
+    []
+  );
+  const [goalProgress, setGoalProgress] = useState<Goal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const { currentTenant } = useTenant();
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (currentTenant) {
-      loadDashboardData();
-    }
-  }, [currentTenant]);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async (): Promise<void> => {
     if (!currentTenant) return;
-    
+
     try {
       setIsLoading(true);
-      
-      // Use dashboard API for stats
-      const dashboardRes = await apiClient.dashboard.getStats({ tenant_id: currentTenant });
-      
-      // Set stats from dashboard API
+
+      const dashboardRes = await apiClient.dashboard.getStats({
+        tenant_id: currentTenant,
+      });
+
       setStats({
         totalBalance: dashboardRes.total_balance || 0,
         monthlyIncome: dashboardRes.monthly_income || 0,
         monthlyExpense: dashboardRes.monthly_expense || 0,
         accountsCount: dashboardRes.accounts_count || 0,
         goalsCount: dashboardRes.goals_count || 0,
-        completedGoals: dashboardRes.completed_goals || 0
+        completedGoals: dashboardRes.completed_goals || 0,
       });
-      
-      // Set recent transactions
+
       setRecentTransactions(dashboardRes.recent_transactions || []);
-      
-      // Load goals for progress display
+
       try {
-        const goalsRes = await apiClient.tujuan.list({ tenant_id: currentTenant, limit: 3 });
-        const goals = goalsRes.goals || goalsRes || [];
-        const goalsWithProgress = goals.map((goal) => ({
-          ...goal,
-          progress: goal.target_nominal > 0 ? (goal.terkumpul_nominal / goal.target_nominal) * 100 : 0
-        }));
+        const goalsRes = await apiClient.tujuan.list({
+          tenant_id: currentTenant,
+          limit: 3,
+        });
+        const goals = goalsRes.tujuan || goalsRes || [];
+        const goalsWithProgress = goals.map(
+          (goal: any): Goal => ({
+            ...goal,
+            progress: calculateProgress(
+              goal.nominal_terkumpul,
+              goal.target_nominal
+            ),
+          })
+        );
         setGoalProgress(goalsWithProgress);
       } catch (error) {
-        console.error('Failed to load goals:', error);
+        console.error("Failed to load goals:", error);
         setGoalProgress([]);
       }
-      
     } catch (error) {
-      console.error('Failed to load dashboard data:', error);
+      console.error("Failed to load dashboard data:", error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentTenant]);
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR'
-    }).format(amount);
-  };
+  useEffect(() => {
+    if (currentTenant) {
+      loadDashboardData();
+    }
+  }, [loadDashboardData]);
 
-  const getTransactionIcon = (type) => {
+  const getTransactionIcon = (type: TransactionType): JSX.Element => {
     switch (type) {
-      case 'income':
+      case "pemasukan":
+      case "income":
         return <ArrowDownLeft className="h-4 w-4 text-green-600" />;
-      case 'expense':
+      case "pengeluaran":
+      case "expense":
         return <ArrowUpRight className="h-4 w-4 text-red-600" />;
+      case "transfer":
+        return <ArrowRightLeft className="h-4 w-4 text-blue-600" />;
       default:
-        return <ArrowUpRight className="h-4 w-4 text-blue-600" />;
+        return <ArrowUpRight className="h-4 w-4 text-gray-600" />;
     }
   };
 
+  const handleNavigateToTransactions = (): void =>
+    navigate("/dashboard/transactions");
+  const handleNavigateToGoals = (): void => navigate("/dashboard/goals");
+
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <LoadingSpinner size="lg" />
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <PageHeaderSkeleton />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <StatsCardSkeleton key={i} />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
+            <div className="overflow-hidden border rounded-lg bg-white">
+              <div className="p-4 sm:p-6 border-b">
+                <div className="flex justify-between items-center">
+                  <div className="space-y-1">
+                    <div className="h-5 w-32 bg-gray-200 rounded animate-pulse" />
+                    <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+                  </div>
+                  <div className="h-8 w-20 bg-gray-200 rounded animate-pulse" />
+                </div>
+              </div>
+              <div className="p-4 sm:p-6 space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <TransactionSkeleton key={i} />
+                ))}
+              </div>
+            </div>
+            <div className="overflow-hidden border rounded-lg bg-white">
+              <div className="p-4 sm:p-6 border-b">
+                <div className="flex justify-between items-center">
+                  <div className="space-y-1">
+                    <div className="h-5 w-32 bg-gray-200 rounded animate-pulse" />
+                    <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+                  </div>
+                  <div className="h-8 w-20 bg-gray-200 rounded animate-pulse" />
+                </div>
+              </div>
+              <div className="p-4 sm:p-6 space-y-4">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <GoalCardSkeleton key={i} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -104,157 +217,290 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-gray-600 text-sm sm:text-base">Selamat datang kembali, {user?.nama_lengkap}</p>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">
+              Dashboard
+            </h1>
+            <p
+              className="text-gray-600 text-sm sm:text-base truncate"
+              title={`Selamat datang kembali, ${user?.nama_lengkap}`}
+            >
+              Selamat datang kembali, {user?.nama_lengkap}
+            </p>
           </div>
-          <Button onClick={() => navigate('/transactions')} className="w-full sm:w-auto">
+          <Button
+            onClick={handleNavigateToTransactions}
+            className="w-full sm:w-auto flex-shrink-0"
+          >
             <Plus className="mr-2 h-4 w-4" />
-            Transaksi Baru
+            <span className="hidden sm:inline">Transaksi Baru</span>
+            <span className="sm:hidden">Tambah</span>
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Saldo</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalBalance)}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.accountsCount} akun aktif
-            </p>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+          <Card className="overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 pt-4">
+              <CardTitle className="text-xs sm:text-sm font-medium truncate pr-2">
+                Total Saldo
+              </CardTitle>
+              <Wallet className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div
+                className="text-lg sm:text-xl lg:text-2xl font-bold truncate"
+                title={safeFormatCurrency(stats.totalBalance)}
+              >
+                {safeFormatCurrency(stats.totalBalance)}
+              </div>
+              <p className="text-xs text-muted-foreground truncate">
+                {stats.accountsCount} akun aktif
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pemasukan Bulan Ini</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatCurrency(stats.monthlyIncome)}</div>
-            <p className="text-xs text-muted-foreground">
-              Bulan {new Date().toLocaleDateString('id-ID', { month: 'long' })}
-            </p>
-          </CardContent>
-        </Card>
+          <Card className="overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 pt-4">
+              <CardTitle className="text-xs sm:text-sm font-medium truncate pr-2">
+                Pemasukan Bulan Ini
+              </CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-600 flex-shrink-0" />
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div
+                className="text-lg sm:text-xl lg:text-2xl font-bold text-green-600 truncate"
+                title={safeFormatCurrency(stats.monthlyIncome)}
+              >
+                {safeFormatCurrency(stats.monthlyIncome)}
+              </div>
+              <p className="text-xs text-muted-foreground truncate">
+                Bulan{" "}
+                {new Date().toLocaleDateString("id-ID", { month: "long" })}
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pengeluaran Bulan Ini</CardTitle>
-            <CreditCard className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{formatCurrency(stats.monthlyExpense)}</div>
-            <p className="text-xs text-muted-foreground">
-              Net: {formatCurrency(stats.monthlyIncome - stats.monthlyExpense)}
-            </p>
-          </CardContent>
-        </Card>
+          <Card className="overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 pt-4">
+              <CardTitle className="text-xs sm:text-sm font-medium truncate pr-2">
+                Pengeluaran Bulan Ini
+              </CardTitle>
+              <CreditCard className="h-4 w-4 text-red-600 flex-shrink-0" />
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div
+                className="text-lg sm:text-xl lg:text-2xl font-bold text-red-600 truncate"
+                title={safeFormatCurrency(stats.monthlyExpense)}
+              >
+                {safeFormatCurrency(stats.monthlyExpense)}
+              </div>
+              <p
+                className="text-xs text-muted-foreground truncate"
+                title={`Net: ${safeFormatCurrency(
+                  stats.monthlyIncome - stats.monthlyExpense
+                )}`}
+              >
+                Net:{" "}
+                {safeFormatCurrency(stats.monthlyIncome - stats.monthlyExpense)}
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tujuan Tercapai</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.completedGoals} dari {stats.goalsCount}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.goalsCount > 0 ? Math.round((stats.completedGoals / stats.goalsCount) * 100) : 0}% tujuan tercapai
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card className="overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 pt-4">
+              <CardTitle className="text-xs sm:text-sm font-medium truncate pr-2">
+                Tujuan Tercapai
+              </CardTitle>
+              <Target className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div className="text-lg sm:text-xl lg:text-2xl font-bold truncate">
+                {stats.completedGoals} dari {stats.goalsCount}
+              </div>
+              <p className="text-xs text-muted-foreground truncate">
+                {stats.goalsCount > 0
+                  ? Math.round((stats.completedGoals / stats.goalsCount) * 100)
+                  : 0}
+                % tujuan tercapai
+              </p>
+            </CardContent>
+          </Card>
+        </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Transaksi Terbaru</CardTitle>
-              <CardDescription>Transaksi bulan ini</CardDescription>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => navigate('/transactions')}>
-              Lihat Semua
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {recentTransactions.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-gray-500">Belum ada transaksi bulan ini</p>
-                <Button className="mt-2" onClick={() => navigate('/transactions')}>
-                  Tambah Transaksi
-                </Button>
+          <Card className="overflow-hidden">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 sm:px-6">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-base sm:text-lg truncate">
+                  Transaksi Terbaru
+                </CardTitle>
+                <CardDescription className="text-sm truncate">
+                  Transaksi bulan ini
+                </CardDescription>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {recentTransactions.map((transaction) => (
-                  <div key={transaction.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {getTransactionIcon(transaction.jenis)}
-                      <div>
-                        <p className="font-medium">
-                          {transaction.catatan || transaction.kategori_nama || 'Transaksi'}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {new Date(transaction.tanggal_transaksi).toLocaleDateString('id-ID')}
-                        </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNavigateToTransactions}
+                className="flex-shrink-0 text-xs sm:text-sm"
+              >
+                <span className="hidden sm:inline">Lihat Semua</span>
+                <span className="sm:hidden">Semua</span>
+              </Button>
+            </CardHeader>
+            <CardContent className="px-4 sm:px-6">
+              {recentTransactions.length === 0 ? (
+                <div className="text-center py-6 sm:py-8">
+                  <p className="text-gray-500 text-sm sm:text-base">
+                    Belum ada transaksi bulan ini
+                  </p>
+                  <Button
+                    className="mt-2 text-sm"
+                    size="sm"
+                    onClick={handleNavigateToTransactions}
+                  >
+                    Tambah Transaksi
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2 sm:space-y-3 max-h-80 overflow-y-auto">
+                  {recentTransactions.map((transaction) => {
+                    const colors = getTransactionColor(transaction.jenis);
+                    const isIncome =
+                      transaction.jenis === "pemasukan" ||
+                      transaction.jenis === "income";
+                    const isExpense =
+                      transaction.jenis === "pengeluaran" ||
+                      transaction.jenis === "expense";
+
+                    return (
+                      <div
+                        key={transaction.id}
+                        className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border-l-4 ${colors.border} ${colors.bg} hover:shadow-sm transition-shadow`}
+                      >
+                        <div
+                          className={`p-1.5 sm:p-2 rounded-lg ${colors.icon} flex-shrink-0`}
+                        >
+                          {getTransactionIcon(transaction.jenis)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className="font-medium text-gray-900 text-sm sm:text-base truncate"
+                            title={
+                              transaction.catatan ||
+                              transaction.kategori_nama ||
+                              "Transaksi"
+                            }
+                          >
+                            {transaction.catatan ||
+                              transaction.kategori_nama ||
+                              "Transaksi"}
+                          </p>
+                          <p className="text-xs sm:text-sm text-gray-600 truncate">
+                            {new Date(
+                              transaction.tanggal_transaksi
+                            ).toLocaleDateString("id-ID")}
+                          </p>
+                        </div>
+                        <div className="text-right flex-shrink-0 min-w-0">
+                          <p
+                            className={`font-semibold text-sm sm:text-base ${colors.text} truncate`}
+                            title={`${
+                              isIncome ? "+" : isExpense ? "-" : ""
+                            }${safeFormatCurrency(transaction.nominal)}`}
+                          >
+                            {isIncome ? "+" : isExpense ? "-" : ""}
+                            {safeFormatCurrency(transaction.nominal)}
+                          </p>
+                          <p
+                            className={`text-xs sm:text-sm capitalize ${colors.light} truncate`}
+                          >
+                            {transaction.jenis === "income"
+                              ? "pemasukan"
+                              : transaction.jenis === "expense"
+                              ? "pengeluaran"
+                              : transaction.jenis}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 sm:px-6">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-base sm:text-lg truncate">
+                  Tujuan Tabungan
+                </CardTitle>
+                <CardDescription className="text-sm truncate">
+                  Progress tujuan Anda
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNavigateToGoals}
+                className="flex-shrink-0 text-xs sm:text-sm"
+              >
+                <span className="hidden sm:inline">Lihat Semua</span>
+                <span className="sm:hidden">Semua</span>
+              </Button>
+            </CardHeader>
+            <CardContent className="px-4 sm:px-6">
+              {goalProgress.length === 0 ? (
+                <div className="text-center py-6 sm:py-8">
+                  <p className="text-gray-500 text-sm sm:text-base">
+                    Belum ada tujuan tabungan
+                  </p>
+                  <Button
+                    className="mt-2 text-sm"
+                    size="sm"
+                    onClick={handleNavigateToGoals}
+                  >
+                    Buat Tujuan
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3 sm:space-y-4 max-h-80 overflow-y-auto">
+                  {goalProgress.map((goal) => (
+                    <div key={goal.id} className="space-y-2">
+                      <div className="flex justify-between items-center gap-2">
+                        <span
+                          className="font-medium text-sm sm:text-base truncate flex-1"
+                          title={goal.nama_tujuan}
+                        >
+                          {goal.nama_tujuan}
+                        </span>
+                        <span className="text-xs sm:text-sm text-gray-500 flex-shrink-0">
+                          {goal.progress.toFixed(1)}%
+                        </span>
+                      </div>
+                      <Progress value={goal.progress} className="h-2" />
+                      <div className="flex justify-between text-xs sm:text-sm text-gray-500 gap-2">
+                        <span
+                          className="truncate"
+                          title={safeFormatCurrency(goal.nominal_terkumpul)}
+                        >
+                          {safeFormatCurrency(goal.nominal_terkumpul)}
+                        </span>
+                        <span
+                          className="truncate"
+                          title={safeFormatCurrency(goal.target_nominal)}
+                        >
+                          {safeFormatCurrency(goal.target_nominal)}
+                        </span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className={`font-medium ${
-                        transaction.jenis === 'income' ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {transaction.jenis === 'income' ? '+' : '-'}{formatCurrency(transaction.nominal)}
-                      </p>
-                      <p className="text-sm text-gray-500 capitalize">{transaction.jenis}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Tujuan Tabungan</CardTitle>
-              <CardDescription>Progress tujuan Anda</CardDescription>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => navigate('/goals')}>
-              Lihat Semua
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {goalProgress.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-gray-500">Belum ada tujuan tabungan</p>
-                <Button className="mt-2" onClick={() => navigate('/goals')}>
-                  Buat Tujuan
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {goalProgress.map((goal) => (
-                  <div key={goal.id} className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="font-medium">{goal.nama_tujuan}</span>
-                      <span className="text-sm text-gray-500">{goal.progress.toFixed(1)}%</span>
-                    </div>
-                    <Progress value={goal.progress} className="h-2" />
-                    <div className="flex justify-between text-sm text-gray-500">
-                      <span>{formatCurrency(goal.terkumpul_nominal)}</span>
-                      <span>{formatCurrency(goal.target_nominal)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
