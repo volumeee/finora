@@ -244,7 +244,7 @@ export namespace auth {
  */
 import { hitungCustomGoal as api_kalkulator_custom_goal_hitungCustomGoal } from "~backend/kalkulator/custom_goal";
 import { hitungDanaDarurat as api_kalkulator_dana_darurat_hitungDanaDarurat } from "~backend/kalkulator/dana_darurat";
-import { hitungKPR as api_kalkulator_kpr_hitungKPR } from "~backend/kalkulator/kpr";
+import { hitungKPR as api_kalkulator_kpr_hitungKPR, saveCalculation as api_kalkulator_kpr_saveCalculation, getSavedCalculations as api_kalkulator_kpr_getSavedCalculations, getSavedCalculation as api_kalkulator_kpr_getSavedCalculation, updateCalculation as api_kalkulator_kpr_updateCalculation, deleteCalculation as api_kalkulator_kpr_deleteCalculation } from "~backend/kalkulator/kpr";
 import { hitungPensiun as api_kalkulator_pensiun_hitungPensiun } from "~backend/kalkulator/pensiun";
 
 export namespace kalkulator {
@@ -258,6 +258,11 @@ export namespace kalkulator {
             this.hitungDanaDarurat = this.hitungDanaDarurat.bind(this)
             this.hitungKPR = this.hitungKPR.bind(this)
             this.hitungPensiun = this.hitungPensiun.bind(this)
+            this.saveCalculation = this.saveCalculation.bind(this)
+            this.getSavedCalculations = this.getSavedCalculations.bind(this)
+            this.getSavedCalculation = this.getSavedCalculation.bind(this)
+            this.updateCalculation = this.updateCalculation.bind(this)
+            this.deleteCalculation = this.deleteCalculation.bind(this)
         }
 
         /**
@@ -294,6 +299,76 @@ export namespace kalkulator {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/kalkulator/pensiun`, {method: "POST", body: JSON.stringify(params)})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_kalkulator_pensiun_hitungPensiun>
+        }
+
+        /**
+         * Save calculation result.
+         */
+        public async saveCalculation(params: RequestType<typeof api_kalkulator_kpr_saveCalculation>): Promise<ResponseType<typeof api_kalkulator_kpr_saveCalculation>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/kalkulator/save`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_kalkulator_kpr_saveCalculation>
+        }
+
+        /**
+         * Get saved calculations.
+         */
+        public async getSavedCalculations(params: RequestType<typeof api_kalkulator_kpr_getSavedCalculations>): Promise<ResponseType<typeof api_kalkulator_kpr_getSavedCalculations>> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                tenant_id: params.tenant_id,
+                type: params.type,
+            })
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/kalkulator/saved`, {query, method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_kalkulator_kpr_getSavedCalculations>
+        }
+
+        /**
+         * Get specific saved calculation.
+         */
+        public async getSavedCalculation(params: { id: string; tenant_id: string }): Promise<ResponseType<typeof api_kalkulator_kpr_getSavedCalculation>> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                tenant_id: params.tenant_id,
+            })
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/kalkulator/saved/${encodeURIComponent(params.id)}`, {query, method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_kalkulator_kpr_getSavedCalculation>
+        }
+
+        /**
+         * Update saved calculation.
+         */
+        public async updateCalculation(params: RequestType<typeof api_kalkulator_kpr_updateCalculation>): Promise<ResponseType<typeof api_kalkulator_kpr_updateCalculation>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                tenant_id: params.tenant_id,
+                nama_perhitungan: params.nama_perhitungan,
+                tipe_kalkulator: params.tipe_kalkulator,
+                input_data: params.input_data,
+                result_data: params.result_data,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/kalkulator/saved/${encodeURIComponent(params.id)}`, {method: "PUT", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_kalkulator_kpr_updateCalculation>
+        }
+
+        /**
+         * Delete saved calculation.
+         */
+        public async deleteCalculation(params: { id: string; tenant_id: string }): Promise<ResponseType<typeof api_kalkulator_kpr_deleteCalculation>> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                tenant_id: params.tenant_id,
+            })
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/kalkulator/saved/${encodeURIComponent(params.id)}`, {query, method: "DELETE", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_kalkulator_kpr_deleteCalculation>
         }
     }
 }
