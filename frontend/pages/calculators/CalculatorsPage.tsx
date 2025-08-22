@@ -41,6 +41,7 @@ import { formatCurrency } from "@/lib/format";
 import apiClient from "@/lib/api-client";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { useTenant } from "@/contexts/TenantContext";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 interface KPRFormData {
   harga_properti: number;
@@ -63,6 +64,7 @@ interface RetirementFormData {
   pengeluaran_bulanan_sekarang: number;
   inflasi_tahunan: number;
   return_investasi_tahunan: number;
+  target_passive_income_bulanan: number;
 }
 
 interface CustomGoalFormData {
@@ -70,6 +72,7 @@ interface CustomGoalFormData {
   jangka_waktu_bulan: number;
   kontribusi_bulanan: number;
   return_investasi_tahunan: number;
+  target_tanggal: string;
 }
 
 interface KPRResult {
@@ -89,15 +92,34 @@ interface KPRResult {
 }
 
 interface EmergencyResult {
-  dana_darurat_minimum: number;
-  dana_darurat_ideal: number;
-  rekomendasi: string;
+  dana_darurat_minimum?: number;
+  dana_darurat_ideal?: number;
+  rekomendasi?: string;
+  tabungan_bulanan_diperlukan: number;
+  target_dana_darurat: number;
+  rekomendasi_instrumen: string[];
+  skenario: {
+    agresif: { jumlah_bulan: number; target_nominal: number };
+    konservatif: { jumlah_bulan: number; target_nominal: number };
+    moderat: { jumlah_bulan: number; target_nominal: number };
+  };
 }
 
 interface RetirementResult {
-  dana_pensiun_dibutuhkan: number;
-  tabungan_bulanan_dibutuhkan: number;
-  strategi_investasi: string;
+  dana_pensiun_dibutuhkan?: number;
+  tabungan_bulanan_dibutuhkan?: number;
+  strategi_investasi?: string;
+  target_dana_pensiun: number;
+  tabungan_bulanan_diperlukan: number;
+  tahun_menabung: number;
+  nilai_sekarang_target: number;
+  rekomendasi_investasi: string[];
+  proyeksi_tahunan: {
+    tahun: number;
+    usia: number;
+    kontribusi_tahunan: number;
+    nilai_investasi: number;
+  }[];
 }
 
 interface CustomGoalResult {
@@ -106,11 +128,7 @@ interface CustomGoalResult {
   proyeksi_return: number;
 }
 
-type CalculatorResult =
-  | KPRResult
-  | EmergencyResult
-  | RetirementResult
-  | CustomGoalResult;
+type CalculatorResult = any;
 
 interface Calculator {
   id: string;
@@ -143,6 +161,13 @@ export default function CalculatorsPage() {
   const [editingCalculation, setEditingCalculation] =
     useState<SavedCalculation | null>(null);
   const [saveName, setSaveName] = useState("");
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    calculation: SavedCalculation | null;
+  }>({
+    open: false,
+    calculation: null,
+  });
   const itemsPerPage = 12;
 
   const { currentTenant } = useTenant();
@@ -169,6 +194,7 @@ export default function CalculatorsPage() {
     pengeluaran_bulanan_sekarang: 0,
     inflasi_tahunan: 0,
     return_investasi_tahunan: 0,
+    target_passive_income_bulanan: 0,
   });
 
   const [customGoalData, setCustomGoalData] = useState<CustomGoalFormData>({
@@ -176,6 +202,7 @@ export default function CalculatorsPage() {
     jangka_waktu_bulan: 0,
     kontribusi_bulanan: 0,
     return_investasi_tahunan: 0,
+    target_tanggal: "",
   });
 
   const handleSaveCalculation = useCallback(async () => {
@@ -242,24 +269,27 @@ export default function CalculatorsPage() {
     toast,
   ]);
 
-  const loadSavedCalculations = useCallback(async () => {
-    if (!currentTenant) return;
+  const loadSavedCalculations = useCallback(
+    async (calculatorType?: string) => {
+      if (!currentTenant) return;
 
-    try {
-      const response = await apiClient.kalkulator.getSavedCalculations({
-        tenant_id: currentTenant,
-        type: activeCalculator || undefined,
-      });
-      setSavedCalculations(response.calculations);
-    } catch (error) {
-      toast({
-        title: "Gagal memuat perhitungan tersimpan",
-        description:
-          error instanceof Error ? error.message : "Terjadi kesalahan",
-        variant: "destructive",
-      });
-    }
-  }, [activeCalculator, currentTenant, toast]);
+      try {
+        const response = await apiClient.kalkulator.getSavedCalculations({
+          tenant_id: currentTenant,
+          type: calculatorType || undefined,
+        });
+        setSavedCalculations(response.calculations);
+      } catch (error) {
+        toast({
+          title: "Gagal memuat perhitungan tersimpan",
+          description:
+            error instanceof Error ? error.message : "Terjadi kesalahan",
+          variant: "destructive",
+        });
+      }
+    },
+    [currentTenant, toast]
+  );
 
   const loadSavedCalculation = useCallback(
     async (id: string) => {
@@ -411,6 +441,26 @@ export default function CalculatorsPage() {
   const handleKPRCalculation = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+
+      // Validate input data
+      if (kprData.harga_properti <= 0) {
+        toast({
+          title: "Data tidak valid",
+          description: "Harga properti harus lebih dari 0",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (kprData.uang_muka >= kprData.harga_properti) {
+        toast({
+          title: "Data tidak valid",
+          description: "Uang muka harus lebih kecil dari harga properti",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setIsLoading(true);
       try {
         // Transform frontend data to match backend interface
@@ -428,7 +478,6 @@ export default function CalculatorsPage() {
           description: "Hasil simulasi KPR telah dihitung",
         });
       } catch (error) {
-        console.error("KPR calculation failed:", error);
         toast({
           title: "Gagal menghitung KPR",
           description:
@@ -447,6 +496,17 @@ export default function CalculatorsPage() {
   const handleEmergencyFundCalculation = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+
+      // Validate input data
+      if (emergencyData.pengeluaran_bulanan <= 0) {
+        toast({
+          title: "Data tidak valid",
+          description: "Pengeluaran bulanan harus lebih dari 0",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setIsLoading(true);
       try {
         const response = await apiClient.kalkulator.hitungDanaDarurat(
@@ -458,7 +518,6 @@ export default function CalculatorsPage() {
           description: "Kebutuhan dana darurat telah dihitung",
         });
       } catch (error) {
-        console.error("Emergency fund calculation failed:", error);
         toast({
           title: "Gagal menghitung dana darurat",
           description:
@@ -477,6 +536,38 @@ export default function CalculatorsPage() {
   const handleRetirementCalculation = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+
+      // Validate input data
+      if (
+        retirementData.usia_sekarang <= 0 ||
+        retirementData.usia_pensiun <= 0
+      ) {
+        toast({
+          title: "Data tidak valid",
+          description: "Usia harus lebih dari 0",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (retirementData.usia_pensiun <= retirementData.usia_sekarang) {
+        toast({
+          title: "Data tidak valid",
+          description: "Usia pensiun harus lebih besar dari usia sekarang",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (retirementData.target_passive_income_bulanan <= 0) {
+        toast({
+          title: "Data tidak valid",
+          description: "Target passive income harus lebih dari 0",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setIsLoading(true);
       try {
         const response = await apiClient.kalkulator.hitungPensiun(
@@ -488,7 +579,6 @@ export default function CalculatorsPage() {
           description: "Rencana pensiun telah dihitung",
         });
       } catch (error) {
-        console.error("Retirement calculation failed:", error);
         toast({
           title: "Gagal menghitung rencana pensiun",
           description:
@@ -507,6 +597,26 @@ export default function CalculatorsPage() {
   const handleCustomGoalCalculation = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+
+      // Validate input data
+      if (customGoalData.target_nominal <= 0) {
+        toast({
+          title: "Data tidak valid",
+          description: "Target nominal harus lebih dari 0",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (customGoalData.jangka_waktu_bulan <= 0) {
+        toast({
+          title: "Data tidak valid",
+          description: "Jangka waktu harus lebih dari 0 bulan",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setIsLoading(true);
       try {
         const response = await apiClient.kalkulator.hitungCustomGoal(
@@ -518,7 +628,6 @@ export default function CalculatorsPage() {
           description: "Strategi mencapai tujuan telah dihitung",
         });
       } catch (error) {
-        console.error("Custom goal calculation failed:", error);
         toast({
           title: "Gagal menghitung tujuan custom",
           description:
@@ -717,22 +826,7 @@ export default function CalculatorsPage() {
           required
         />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="pengeluaran_bulanan_sekarang">
-          Pengeluaran Bulanan Sekarang
-        </Label>
-        <CurrencyInput
-          value={retirementData.pengeluaran_bulanan_sekarang}
-          onChange={(value) =>
-            setRetirementData((prev) => ({
-              ...prev,
-              pengeluaran_bulanan_sekarang: value,
-            }))
-          }
-          placeholder="8.000.000"
-          required
-        />
-      </div>
+
       <div className="space-y-2">
         <Label htmlFor="inflasi_tahunan">Inflasi Tahunan (%)</Label>
         <Input
@@ -766,6 +860,22 @@ export default function CalculatorsPage() {
               return_investasi_tahunan: parseFloat(e.target.value) || 0,
             }))
           }
+          required
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="target_passive_income_bulanan">
+          Target Passive Income Bulanan
+        </Label>
+        <CurrencyInput
+          value={retirementData.target_passive_income_bulanan}
+          onChange={(value) =>
+            setRetirementData((prev) => ({
+              ...prev,
+              target_passive_income_bulanan: value,
+            }))
+          }
+          placeholder="5.000.000"
           required
         />
       </div>
@@ -869,10 +979,12 @@ export default function CalculatorsPage() {
             data.angsuran_bulanan || 0
           )}/bulan`;
         case "emergency":
-          return `Dana Ideal: ${formatCurrency(data.dana_darurat_ideal || 0)}`;
+          return `Target: ${formatCurrency(
+            data.target_dana_darurat || data.dana_darurat_ideal || 0
+          )}`;
         case "retirement":
           return `Tabungan: ${formatCurrency(
-            data.tabungan_bulanan_dibutuhkan || 0
+            data.tabungan_bulanan_diperlukan || 0
           )}/bulan`;
         case "custom":
           return `Kontribusi: ${formatCurrency(
@@ -919,9 +1031,7 @@ export default function CalculatorsPage() {
               variant="outline"
               onClick={(e) => {
                 e.stopPropagation();
-                if (confirm(`Hapus perhitungan "${calc.nama_perhitungan}"?`)) {
-                  deleteSavedCalculation(calc.id, calc.nama_perhitungan);
-                }
+                setDeleteDialog({ open: true, calculation: calc });
               }}
             >
               <Trash2 className="h-3 w-3 text-red-500" />
@@ -950,7 +1060,7 @@ export default function CalculatorsPage() {
                     Angsuran Bulanan
                   </p>
                   <p className="text-xl font-bold text-blue-800">
-                    {formatCurrency(result.angsuran_bulanan)}
+                    {formatCurrency(result.angsuran_bulanan || 0)}
                   </p>
                 </div>
                 <div className="bg-green-50 p-4 rounded-lg border border-green-200">
@@ -958,7 +1068,7 @@ export default function CalculatorsPage() {
                     Uang Muka
                   </p>
                   <p className="text-xl font-bold text-green-800">
-                    {formatCurrency(result.uang_muka)}
+                    {formatCurrency(result.uang_muka || 0)}
                   </p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -966,7 +1076,7 @@ export default function CalculatorsPage() {
                     Jumlah Pinjaman
                   </p>
                   <p className="text-xl font-bold text-gray-800">
-                    {formatCurrency(result.jumlah_pinjaman)}
+                    {formatCurrency(result.jumlah_pinjaman || 0)}
                   </p>
                 </div>
                 <div className="bg-red-50 p-4 rounded-lg border border-red-200">
@@ -974,7 +1084,7 @@ export default function CalculatorsPage() {
                     Total Bunga
                   </p>
                   <p className="text-xl font-bold text-red-800">
-                    {formatCurrency(result.total_bunga)}
+                    {formatCurrency(result.total_bunga || 0)}
                   </p>
                 </div>
               </div>
@@ -986,7 +1096,7 @@ export default function CalculatorsPage() {
                     Total Pembayaran:
                   </span>
                   <span className="text-2xl font-bold text-purple-800">
-                    {formatCurrency(result.total_pembayaran)}
+                    {formatCurrency(result.total_pembayaran || 0)}
                   </span>
                 </div>
               </div>
@@ -1042,7 +1152,7 @@ export default function CalculatorsPage() {
                   open={showHistoryDialog}
                   onOpenChange={(open) => {
                     setShowHistoryDialog(open);
-                    if (open) loadSavedCalculations();
+                    if (open) loadSavedCalculations(activeCalculator);
                   }}
                 >
                   <DialogTrigger asChild>
@@ -1098,12 +1208,12 @@ export default function CalculatorsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {result.tabel_angsuran
+                      {(result.tabel_angsuran || [])
                         .slice(
                           (currentPage - 1) * itemsPerPage,
                           currentPage * itemsPerPage
                         )
-                        .map((row) => (
+                        .map((row: any) => (
                           <tr key={row.bulan} className="hover:bg-gray-50">
                             <td className="border border-gray-300 px-3 py-2 font-medium">
                               {row.bulan}
@@ -1134,7 +1244,7 @@ export default function CalculatorsPage() {
                       currentPage * itemsPerPage,
                       result.tabel_angsuran.length
                     )}{" "}
-                    dari {result.tabel_angsuran.length} bulan
+                    dari {result.tabel_angsuran?.length || 0} bulan
                   </p>
                   <div className="flex items-center space-x-2">
                     <Button
@@ -1149,7 +1259,9 @@ export default function CalculatorsPage() {
                     </Button>
                     <span className="text-sm text-gray-600">
                       Halaman {currentPage} dari{" "}
-                      {Math.ceil(result.tabel_angsuran.length / itemsPerPage)}
+                      {Math.ceil(
+                        (result.tabel_angsuran?.length || 0) / itemsPerPage
+                      )}
                     </span>
                     <Button
                       variant="outline"
@@ -1166,7 +1278,9 @@ export default function CalculatorsPage() {
                       }
                       disabled={
                         currentPage ===
-                        Math.ceil(result.tabel_angsuran.length / itemsPerPage)
+                        Math.ceil(
+                          (result.tabel_angsuran?.length || 0) / itemsPerPage
+                        )
                       }
                     >
                       Selanjutnya
@@ -1178,27 +1292,127 @@ export default function CalculatorsPage() {
           )}
 
           {activeCalculator === "emergency" &&
-            "dana_darurat_minimum" in result && (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">
-                    Dana Darurat Minimum:
-                  </span>
-                  <span className="font-semibold text-orange-600">
-                    {formatCurrency(result.dana_darurat_minimum)}
-                  </span>
+            (result?.tabungan_bulanan_diperlukan ||
+              result?.dana_darurat_minimum) && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {result?.tabungan_bulanan_diperlukan ? (
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                      <p className="text-sm text-blue-600 font-medium">
+                        Tabungan Bulanan Diperlukan
+                      </p>
+                      <p className="text-xl font-bold text-blue-800">
+                        {formatCurrency(result.tabungan_bulanan_diperlukan)}
+                      </p>
+                    </div>
+                  ) : result?.dana_darurat_minimum ? (
+                    <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                      <p className="text-sm text-orange-600 font-medium">
+                        Dana Darurat Minimum
+                      </p>
+                      <p className="text-xl font-bold text-orange-800">
+                        {formatCurrency(result.dana_darurat_minimum)}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {result?.target_dana_darurat ? (
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                      <p className="text-sm text-green-600 font-medium">
+                        Target Dana Darurat
+                      </p>
+                      <p className="text-xl font-bold text-green-800">
+                        {formatCurrency(result.target_dana_darurat)}
+                      </p>
+                    </div>
+                  ) : result?.dana_darurat_ideal ? (
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                      <p className="text-sm text-green-600 font-medium">
+                        Dana Darurat Ideal
+                      </p>
+                      <p className="text-xl font-bold text-green-800">
+                        {formatCurrency(result.dana_darurat_ideal)}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">
-                    Dana Darurat Ideal:
-                  </span>
-                  <span className="font-semibold text-green-600 text-lg">
-                    {formatCurrency(result.dana_darurat_ideal)}
-                  </span>
-                </div>
-                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">{result.rekomendasi}</p>
-                </div>
+
+                {result.skenario && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-gray-800">
+                      Skenario Dana Darurat
+                    </h4>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-red-50 p-3 rounded-lg border border-red-200">
+                        <p className="text-xs text-red-600 font-medium">
+                          Konservatif
+                        </p>
+                        <p className="text-sm font-bold text-red-800">
+                          {formatCurrency(
+                            result.skenario.konservatif.target_nominal
+                          )}
+                        </p>
+                        <p className="text-xs text-red-600">
+                          {result.skenario.konservatif.jumlah_bulan} bulan
+                        </p>
+                      </div>
+                      <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                        <p className="text-xs text-yellow-600 font-medium">
+                          Moderat
+                        </p>
+                        <p className="text-sm font-bold text-yellow-800">
+                          {formatCurrency(
+                            result.skenario.moderat.target_nominal
+                          )}
+                        </p>
+                        <p className="text-xs text-yellow-600">
+                          {result.skenario.moderat.jumlah_bulan} bulan
+                        </p>
+                      </div>
+                      <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
+                        <p className="text-xs text-purple-600 font-medium">
+                          Agresif
+                        </p>
+                        <p className="text-sm font-bold text-purple-800">
+                          {formatCurrency(
+                            result.skenario.agresif.target_nominal
+                          )}
+                        </p>
+                        <p className="text-xs text-purple-600">
+                          {result.skenario.agresif.jumlah_bulan} bulan
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {result.rekomendasi_instrumen && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-gray-800">
+                      Rekomendasi Instrumen
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {result.rekomendasi_instrumen.map(
+                        (instrumen: any, index: any) => (
+                          <div
+                            key={index}
+                            className="bg-gray-50 p-2 rounded border text-sm text-gray-700"
+                          >
+                            {instrumen}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {result.rekomendasi && (
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      {result.rekomendasi}
+                    </p>
+                  </div>
+                )}
 
                 {/* Save/Load Buttons */}
                 <div className="flex gap-2 mt-4">
@@ -1288,29 +1502,125 @@ export default function CalculatorsPage() {
             )}
 
           {activeCalculator === "retirement" &&
-            "dana_pensiun_dibutuhkan" in result && (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">
-                    Dana Pensiun Dibutuhkan:
-                  </span>
-                  <span className="font-semibold text-lg">
-                    {formatCurrency(result.dana_pensiun_dibutuhkan)}
-                  </span>
+            ("target_dana_pensiun" in result ||
+              "dana_pensiun_dibutuhkan" in result) && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                    <p className="text-sm text-purple-600 font-medium">
+                      Target Dana Pensiun
+                    </p>
+                    <p className="text-xl font-bold text-purple-800">
+                      {formatCurrency(
+                        result.target_dana_pensiun ||
+                          result.dana_pensiun_dibutuhkan ||
+                          0
+                      )}
+                    </p>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <p className="text-sm text-blue-600 font-medium">
+                      Tabungan Bulanan
+                    </p>
+                    <p className="text-xl font-bold text-blue-800">
+                      {formatCurrency(
+                        result.tabungan_bulanan_diperlukan ||
+                          result.tabungan_bulanan_dibutuhkan ||
+                          0
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">
-                    Tabungan Bulanan:
-                  </span>
-                  <span className="font-semibold text-blue-600">
-                    {formatCurrency(result.tabungan_bulanan_dibutuhkan)}
-                  </span>
-                </div>
-                <div className="mt-4 p-3 bg-purple-50 rounded-lg">
-                  <p className="text-sm text-purple-800">
-                    {result.strategi_investasi}
-                  </p>
-                </div>
+
+                {result.tahun_menabung && (
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <p className="text-sm text-green-600 font-medium">
+                      Periode Menabung
+                    </p>
+                    <p className="text-xl font-bold text-green-800">
+                      {result.tahun_menabung} tahun
+                    </p>
+                  </div>
+                )}
+
+                {result.rekomendasi_investasi && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-gray-800">
+                      Rekomendasi Investasi
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {result.rekomendasi_investasi.map(
+                        (investasi: any, index: any) => (
+                          <div
+                            key={index}
+                            className="bg-gray-50 p-2 rounded border text-sm text-gray-700"
+                          >
+                            {investasi}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {result.proyeksi_tahunan && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-gray-800">
+                      Proyeksi 10 Tahun Pertama
+                    </h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse border border-gray-300">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="border border-gray-300 px-3 py-2 text-left">
+                              Tahun
+                            </th>
+                            <th className="border border-gray-300 px-3 py-2 text-left">
+                              Usia
+                            </th>
+                            <th className="border border-gray-300 px-3 py-2 text-right">
+                              Kontribusi
+                            </th>
+                            <th className="border border-gray-300 px-3 py-2 text-right">
+                              Nilai Investasi
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {result.proyeksi_tahunan
+                            .slice(0, 10)
+                            .map((proyeksi: any) => (
+                              <tr
+                                key={proyeksi.tahun}
+                                className="hover:bg-gray-50"
+                              >
+                                <td className="border border-gray-300 px-3 py-2">
+                                  {proyeksi.tahun}
+                                </td>
+                                <td className="border border-gray-300 px-3 py-2">
+                                  {proyeksi.usia}
+                                </td>
+                                <td className="border border-gray-300 px-3 py-2 text-right">
+                                  {formatCurrency(proyeksi.kontribusi_tahunan)}
+                                </td>
+                                <td className="border border-gray-300 px-3 py-2 text-right font-semibold">
+                                  {formatCurrency(proyeksi.nilai_investasi)}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {result.strategi_investasi && (
+                  <div className="bg-purple-50 p-3 rounded-lg">
+                    <p className="text-sm text-purple-800">
+                      {result.strategi_investasi}
+                    </p>
+                  </div>
+                )}
 
                 {/* Save/Load Buttons */}
                 <div className="flex gap-2 mt-4">
@@ -1324,6 +1634,42 @@ export default function CalculatorsPage() {
                         Simpan Perhitungan
                       </Button>
                     </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Simpan Perhitungan</DialogTitle>
+                        <DialogDescription>
+                          Berikan nama untuk perhitungan ini agar mudah
+                          ditemukan nanti
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="save-name">Nama Perhitungan</Label>
+                          <Input
+                            id="save-name"
+                            value={saveName}
+                            onChange={(e) => setSaveName(e.target.value)}
+                            placeholder="Contoh: Dana Darurat Keluarga"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => setShowSaveDialog(false)}
+                            variant="outline"
+                            className="flex-1"
+                          >
+                            Batal
+                          </Button>
+                          <Button
+                            onClick={handleSaveCalculation}
+                            disabled={!saveName.trim()}
+                            className="flex-1"
+                          >
+                            Simpan
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
                   </Dialog>
 
                   <Dialog
@@ -1446,6 +1792,13 @@ export default function CalculatorsPage() {
     );
   };
 
+  // Load saved calculations when calculator changes
+  React.useEffect(() => {
+    if (activeCalculator && currentTenant) {
+      loadSavedCalculations(activeCalculator);
+    }
+  }, [activeCalculator, currentTenant, loadSavedCalculations]);
+
   if (activeCalculator) {
     const calculator = calculators.find((c) => c.id === activeCalculator);
     if (!calculator) return null;
@@ -1487,7 +1840,50 @@ export default function CalculatorsPage() {
               </CardContent>
             </Card>
 
-            <div>{renderResult()}</div>
+            <div className="space-y-6">
+              {renderResult()}
+
+              {/* History Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Riwayat Perhitungan</CardTitle>
+                  <CardDescription>
+                    Perhitungan yang pernah disimpan
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {savedCalculations
+                      .filter(
+                        (calc) => calc.tipe_kalkulator === activeCalculator
+                      )
+                      .slice(0, 5)
+                      .map(renderHistoryItem)}
+                    {savedCalculations.filter(
+                      (calc) => calc.tipe_kalkulator === activeCalculator
+                    ).length === 0 && (
+                      <p className="text-center text-gray-500 py-4">
+                        Belum ada perhitungan tersimpan
+                      </p>
+                    )}
+                    {savedCalculations.filter(
+                      (calc) => calc.tipe_kalkulator === activeCalculator
+                    ).length > 5 && (
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => {
+                          setShowHistoryDialog(true);
+                          loadSavedCalculations(activeCalculator);
+                        }}
+                      >
+                        Lihat Semua Riwayat
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
 
@@ -1531,6 +1927,23 @@ export default function CalculatorsPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          open={deleteDialog.open}
+          onOpenChange={(open) => setDeleteDialog({ open, calculation: null })}
+          title="Hapus Perhitungan"
+          description={`Apakah Anda yakin ingin menghapus perhitungan "${deleteDialog.calculation?.nama_perhitungan}"? Tindakan ini tidak dapat dibatalkan.`}
+          onConfirm={() => {
+            if (deleteDialog.calculation) {
+              deleteSavedCalculation(
+                deleteDialog.calculation.id,
+                deleteDialog.calculation.nama_perhitungan
+              );
+              setDeleteDialog({ open: false, calculation: null });
+            }
+          }}
+        />
       </div>
     );
   }
