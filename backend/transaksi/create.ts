@@ -66,8 +66,8 @@ export const create = api<CreateTransaksiRequest, Transaksi>(
     const tx = await transaksiDB.begin();
 
     try {
-      // Convert to cents for database
-      const nominalCents = Math.round(req.nominal * 100);
+      // Convert to cents for database (ensure BigInt compatibility)
+      const nominalCents = BigInt(Math.round(req.nominal * 100));
 
       // Insert main transaction
       const transaksi = await tx.queryRow<Transaksi>`
@@ -88,7 +88,7 @@ export const create = api<CreateTransaksiRequest, Transaksi>(
       if (req.split_kategori && req.split_kategori.length > 0) {
         const splitKategori = [];
         for (const split of req.split_kategori) {
-          const splitCents = Math.round(split.nominal_split * 100);
+          const splitCents = BigInt(Math.round(split.nominal_split * 100));
           await tx.exec`
             INSERT INTO detail_transaksi_split (transaksi_id, kategori_id, nominal_split)
             VALUES (${transaksi.id}, ${split.kategori_id}, ${splitCents})
@@ -104,13 +104,13 @@ export const create = api<CreateTransaksiRequest, Transaksi>(
       if (transaksi.jenis === "pemasukan") {
         await updateBalance({
           akun_id: req.akun_id,
-          amount: nominalCents,
+          amount: Number(nominalCents),
           operation: "add"
         });
       } else if (transaksi.jenis === "pengeluaran") {
         await updateBalance({
           akun_id: req.akun_id,
-          amount: nominalCents,
+          amount: Number(nominalCents),
           operation: "subtract"
         });
       }
@@ -118,7 +118,7 @@ export const create = api<CreateTransaksiRequest, Transaksi>(
       // Convert back to normal numbers
       return {
         ...transaksi,
-        nominal: transaksi.nominal / 100,
+        nominal: Number(transaksi.nominal) / 100,
       };
     } catch (error) {
       await tx.rollback();

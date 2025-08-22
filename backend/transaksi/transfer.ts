@@ -31,8 +31,8 @@ export const createTransfer = api<CreateTransferRequest, Transfer>(
     const tx = await transaksiDB.begin();
 
     try {
-      // Convert to cents for database
-      const nominalCents = Math.round(req.nominal * 100);
+      // Convert to cents for database (ensure BigInt compatibility)
+      const nominalCents = BigInt(Math.round(req.nominal * 100));
 
       // Create outgoing transaction
       const transaksiKeluar = await tx.queryRow<Transaksi>`
@@ -74,8 +74,8 @@ export const createTransfer = api<CreateTransferRequest, Transfer>(
           dibuat_pada: new Date(),
         };
         
-        // Only deduct from source account
-        await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini - ${nominalCents} WHERE id = ${req.akun_asal_id}`;
+        // Only deduct from source account using safe function
+        await tx.exec`UPDATE akun SET saldo_terkini = safe_bigint_subtract(saldo_terkini, ${nominalCents}) WHERE id = ${req.akun_asal_id}`;
       } else {
         // Regular account transfer
         transaksiMasuk = await tx.queryRow<Transaksi>`
@@ -105,9 +105,9 @@ export const createTransfer = api<CreateTransferRequest, Transfer>(
         
         transfer = transferRecord;
 
-        // Update both account balances
-        await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini - ${nominalCents} WHERE id = ${req.akun_asal_id}`;
-        await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini + ${nominalCents} WHERE id = ${req.akun_tujuan_id}`;
+        // Update both account balances using safe functions within transaction
+        await tx.exec`UPDATE akun SET saldo_terkini = safe_bigint_subtract(saldo_terkini, ${nominalCents}) WHERE id = ${req.akun_asal_id}`;
+        await tx.exec`UPDATE akun SET saldo_terkini = safe_bigint_add(saldo_terkini, ${nominalCents}) WHERE id = ${req.akun_tujuan_id}`;
       }
 
       await tx.commit();
@@ -117,11 +117,11 @@ export const createTransfer = api<CreateTransferRequest, Transfer>(
         id: transfer.id,
         transaksi_keluar: {
           ...transaksiKeluar,
-          nominal: transaksiKeluar.nominal / 100,
+          nominal: Number(transaksiKeluar.nominal) / 100,
         },
         transaksi_masuk: {
           ...transaksiMasuk,
-          nominal: transaksiMasuk.nominal / 100,
+          nominal: Number(transaksiMasuk.nominal) / 100,
         },
         dibuat_pada: transfer.dibuat_pada,
       };

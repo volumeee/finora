@@ -47,7 +47,7 @@ export const update = api<
         values.push(updates.jenis);
       }
       if (updates.nominal !== undefined) {
-        const nominalCents = Math.round(updates.nominal * 100);
+        const nominalCents = BigInt(Math.round(updates.nominal * 100));
         setParts.push(`nominal = $${paramIndex++}`);
         values.push(nominalCents);
       }
@@ -111,7 +111,7 @@ export const update = api<
 
         // Insert new splits
         for (const split of updates.split_kategori) {
-          const splitCents = Math.round(split.nominal_split * 100);
+          const splitCents = BigInt(Math.round(split.nominal_split * 100));
           await tx.exec`
             INSERT INTO detail_transaksi_split (transaksi_id, kategori_id, nominal_split)
             VALUES (${id}, ${split.kategori_id}, ${splitCents})
@@ -128,24 +128,24 @@ export const update = api<
         if (splits.length > 0) {
           transaksi.split_kategori = splits.map((s) => ({
             ...s,
-            nominal_split: s.nominal_split / 100,
+            nominal_split: Number(s.nominal_split) / 100,
           }));
         }
       }
 
-      // Update account balance manually before commit
+      // Update account balance within transaction for atomicity
       // Revert old transaction
       if (oldTransaksi.jenis === "pemasukan") {
-        await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini - ${oldTransaksi.nominal} WHERE id = ${oldTransaksi.akun_id}`;
+        await tx.exec`UPDATE akun SET saldo_terkini = safe_bigint_subtract(saldo_terkini, ${oldTransaksi.nominal}) WHERE id = ${oldTransaksi.akun_id}`;
       } else if (oldTransaksi.jenis === "pengeluaran") {
-        await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini + ${oldTransaksi.nominal} WHERE id = ${oldTransaksi.akun_id}`;
+        await tx.exec`UPDATE akun SET saldo_terkini = safe_bigint_add(saldo_terkini, ${oldTransaksi.nominal}) WHERE id = ${oldTransaksi.akun_id}`;
       }
 
       // Apply new transaction
       if (transaksi.jenis === "pemasukan") {
-        await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini + ${transaksi.nominal} WHERE id = ${transaksi.akun_id}`;
+        await tx.exec`UPDATE akun SET saldo_terkini = safe_bigint_add(saldo_terkini, ${transaksi.nominal}) WHERE id = ${transaksi.akun_id}`;
       } else if (transaksi.jenis === "pengeluaran") {
-        await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini - ${transaksi.nominal} WHERE id = ${transaksi.akun_id}`;
+        await tx.exec`UPDATE akun SET saldo_terkini = safe_bigint_subtract(saldo_terkini, ${transaksi.nominal}) WHERE id = ${transaksi.akun_id}`;
       }
 
       await tx.commit();
@@ -153,7 +153,7 @@ export const update = api<
       // Convert nominal from cents
       return {
         ...transaksi,
-        nominal: transaksi.nominal / 100,
+        nominal: Number(transaksi.nominal) / 100,
       };
     } catch (error) {
       await tx.rollback();
