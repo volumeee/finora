@@ -1,74 +1,64 @@
 import { api, APIError } from "encore.dev/api";
 import { Header } from "encore.dev/api";
-import { tenantDB } from "./db";
-import { Tenant } from "./create";
+import { SQLDatabase } from "encore.dev/storage/sqldb";
 import * as crypto from "crypto";
 
-interface UpdateTenantParams {
-  id: string;
-}
+const tenantDB = SQLDatabase.named("tenant");
 
-interface UpdateTenantRequest {
-  nama?: string;
-  sub_domain?: string;
-  zona_waktu?: string;
-  logo_url?: string;
+interface UpdateProfileRequest {
+  nama_lengkap?: string;
+  email?: string;
+  no_telepon?: string;
   authorization: Header<"Authorization">;
 }
 
-// Updates a tenant.
-export const update = api<UpdateTenantParams & UpdateTenantRequest, Tenant>(
-  { expose: true, method: "PUT", path: "/tenant/:id" },
-  async ({ id, authorization, ...updates }) => {
-    const userId = extractUserIdFromToken(authorization);
+interface UserProfile {
+  id: string;
+  nama_lengkap: string;
+  email: string;
+  no_telepon?: string;
+  diubah_pada: Date;
+}
+
+// Updates user profile information.
+export const updateProfile = api<UpdateProfileRequest, UserProfile>(
+  { expose: true, method: "PUT", path: "/auth/profile" },
+  async (req) => {
+    const userId = extractUserIdFromToken(req.authorization);
     
-    // Check if user has permission to update tenant
-    const userTenant = await tenantDB.queryRow<{ peran_id: number }>`
-      SELECT peran_id
-      FROM pengguna_tenant
-      WHERE tenant_id = ${id} AND pengguna_id = ${userId}
-    `;
-    
-    if (!userTenant || userTenant.peran_id > 2) { // Only owner and admin can update
-      throw APIError.permissionDenied("insufficient permissions to update tenant");
-    }
     const setParts: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
 
-    if (updates.nama !== undefined) {
-      setParts.push(`nama = $${paramIndex++}`);
-      values.push(updates.nama);
+    if (req.nama_lengkap !== undefined) {
+      setParts.push(`nama_lengkap = $${paramIndex++}`);
+      values.push(req.nama_lengkap);
     }
-    if (updates.sub_domain !== undefined) {
-      setParts.push(`sub_domain = $${paramIndex++}`);
-      values.push(updates.sub_domain);
+    if (req.email !== undefined) {
+      setParts.push(`email = $${paramIndex++}`);
+      values.push(req.email);
     }
-    if (updates.zona_waktu !== undefined) {
-      setParts.push(`zona_waktu = $${paramIndex++}`);
-      values.push(updates.zona_waktu);
-    }
-    if (updates.logo_url !== undefined) {
-      setParts.push(`logo_url = $${paramIndex++}`);
-      values.push(updates.logo_url);
+    if (req.no_telepon !== undefined) {
+      setParts.push(`no_telepon = $${paramIndex++}`);
+      values.push(req.no_telepon);
     }
 
     if (setParts.length === 0) {
       throw APIError.invalidArgument("no fields to update");
     }
 
-    values.push(id);
+    values.push(userId);
     const query = `
-      UPDATE tenants 
+      UPDATE pengguna 
       SET ${setParts.join(', ')}, diubah_pada = NOW()
       WHERE id = $${paramIndex} AND dihapus_pada IS NULL
-      RETURNING id, nama, sub_domain, zona_waktu, logo_url, dibuat_pada, diubah_pada
+      RETURNING id, nama_lengkap, email, no_telepon, diubah_pada
     `;
 
-    const row = await tenantDB.rawQueryRow<Tenant>(query, ...values);
+    const row = await tenantDB.rawQueryRow<UserProfile>(query, ...values);
     
     if (!row) {
-      throw APIError.notFound("tenant not found");
+      throw APIError.notFound("user not found");
     }
     
     return row;

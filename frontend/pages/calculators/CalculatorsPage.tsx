@@ -599,7 +599,10 @@ export default function CalculatorsPage() {
       e.preventDefault();
 
       // Validate input data
-      if (customGoalData.target_nominal <= 0) {
+      if (
+        !customGoalData.target_nominal ||
+        customGoalData.target_nominal <= 0
+      ) {
         toast({
           title: "Data tidak valid",
           description: "Target nominal harus lebih dari 0",
@@ -608,7 +611,10 @@ export default function CalculatorsPage() {
         return;
       }
 
-      if (customGoalData.jangka_waktu_bulan <= 0) {
+      if (
+        !customGoalData.jangka_waktu_bulan ||
+        customGoalData.jangka_waktu_bulan <= 0
+      ) {
         toast({
           title: "Data tidak valid",
           description: "Jangka waktu harus lebih dari 0 bulan",
@@ -617,10 +623,36 @@ export default function CalculatorsPage() {
         return;
       }
 
+      if (isNaN(customGoalData.return_investasi_tahunan)) {
+        toast({
+          title: "Data tidak valid",
+          description: "Return investasi harus berupa angka yang valid",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setIsLoading(true);
       try {
+        // Calculate target date from months
+        const targetDate = new Date();
+        targetDate.setMonth(
+          targetDate.getMonth() + customGoalData.jangka_waktu_bulan
+        );
+
+        // Transform frontend data to match backend interface
+        const backendData = {
+          target_nominal: Number(customGoalData.target_nominal) || 0,
+          target_tanggal: targetDate.toISOString().split("T")[0], // YYYY-MM-DD format
+          nominal_awal: Number(customGoalData.kontribusi_bulanan) || 0,
+          return_investasi_tahunan_persen:
+            Number(customGoalData.return_investasi_tahunan) || 0,
+        };
+
+        console.log("Custom Goal Data being sent:", backendData);
+
         const response = await apiClient.kalkulator.hitungCustomGoal(
-          customGoalData
+          backendData
         );
         setResult(response);
         toast({
@@ -988,7 +1020,9 @@ export default function CalculatorsPage() {
           )}/bulan`;
         case "custom":
           return `Kontribusi: ${formatCurrency(
-            data.kontribusi_bulanan_dibutuhkan || 0
+            data.tabungan_bulanan_diperlukan ||
+              data.kontribusi_bulanan_dibutuhkan ||
+              0
           )}/bulan`;
         default:
           return "";
@@ -1710,35 +1744,113 @@ export default function CalculatorsPage() {
             )}
 
           {activeCalculator === "custom" &&
-            "kontribusi_bulanan_dibutuhkan" in result && (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">
-                    Kontribusi Bulanan Dibutuhkan:
-                  </span>
-                  <span className="font-semibold text-lg text-blue-600">
-                    {formatCurrency(result.kontribusi_bulanan_dibutuhkan)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">
-                    Total Kontribusi:
-                  </span>
-                  <span className="font-semibold">
-                    {formatCurrency(result.total_kontribusi)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">
-                    Proyeksi Return:
-                  </span>
-                  <span className="font-semibold text-green-600">
-                    {formatCurrency(result.proyeksi_return)}
-                  </span>
+            ("tabungan_bulanan_diperlukan" in result ||
+              "kontribusi_bulanan_dibutuhkan" in result) && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <p className="text-sm text-blue-600 font-medium">
+                      Tabungan Bulanan Diperlukan
+                    </p>
+                    <p className="text-xl font-bold text-blue-800">
+                      {formatCurrency(
+                        result.tabungan_bulanan_diperlukan ||
+                          result.kontribusi_bulanan_dibutuhkan ||
+                          0
+                      )}
+                    </p>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <p className="text-sm text-green-600 font-medium">
+                      Bulan Tersisa
+                    </p>
+                    <p className="text-xl font-bold text-green-800">
+                      {result.bulan_tersisa || 0} bulan
+                    </p>
+                  </div>
                 </div>
 
-                {/* Save/Load Buttons */}
-                <div className="flex gap-2 mt-4">
+                {result.skenario && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-gray-800">
+                      Skenario Tabungan
+                    </h4>
+                    <div className="space-y-2">
+                      {result.skenario.map((skenario: any, index: any) => (
+                        <div
+                          key={index}
+                          className="bg-gray-50 p-3 rounded-lg border"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="font-medium text-gray-800">
+                                {skenario.jenis}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                Kemungkinan: {skenario.kemungkinan_tercapai}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm text-gray-600">
+                                Tabungan/bulan:
+                              </p>
+                              <p className="font-semibold">
+                                {formatCurrency(skenario.tabungan_bulanan)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <span className="text-gray-500">
+                                Total Kontribusi:{" "}
+                              </span>
+                              <span className="font-medium">
+                                {formatCurrency(skenario.total_kontribusi)}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">
+                                Return Investasi:{" "}
+                              </span>
+                              <span className="font-medium text-green-600">
+                                {formatCurrency(skenario.return_investasi)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {result.milestone && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-gray-800">
+                      Milestone Pencapaian
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {result.milestone.map((milestone: any, index: any) => (
+                        <div
+                          key={index}
+                          className="bg-purple-50 p-3 rounded-lg border border-purple-200"
+                        >
+                          <p className="text-sm text-purple-600 font-medium">
+                            {milestone.target_tercapai_persen}% Target
+                          </p>
+                          <p className="text-lg font-bold text-purple-800">
+                            {formatCurrency(milestone.nominal_tercapai)}
+                          </p>
+                          <p className="text-xs text-purple-600">
+                            Bulan ke-{milestone.bulan}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Save Button */}
+                <div className="flex gap-2">
                   <Dialog
                     open={showSaveDialog}
                     onOpenChange={setShowSaveDialog}
@@ -1749,13 +1861,49 @@ export default function CalculatorsPage() {
                         Simpan Perhitungan
                       </Button>
                     </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Simpan Perhitungan</DialogTitle>
+                        <DialogDescription>
+                          Berikan nama untuk perhitungan ini agar mudah
+                          ditemukan nanti
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="save-name">Nama Perhitungan</Label>
+                          <Input
+                            id="save-name"
+                            value={saveName}
+                            onChange={(e) => setSaveName(e.target.value)}
+                            placeholder="Contoh: Rumah Impian Jakarta"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => setShowSaveDialog(false)}
+                            variant="outline"
+                            className="flex-1"
+                          >
+                            Batal
+                          </Button>
+                          <Button
+                            onClick={handleSaveCalculation}
+                            disabled={!saveName.trim()}
+                            className="flex-1"
+                          >
+                            Simpan
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
                   </Dialog>
 
                   <Dialog
                     open={showHistoryDialog}
                     onOpenChange={(open) => {
                       setShowHistoryDialog(open);
-                      if (open) loadSavedCalculations();
+                      if (open) loadSavedCalculations(activeCalculator);
                     }}
                   >
                     <DialogTrigger asChild>

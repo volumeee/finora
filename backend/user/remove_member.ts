@@ -52,3 +52,40 @@ export const removeMember = api<RemoveMemberRequest, void>(
     `;
   }
 );
+
+function extractUserIdFromToken(authHeader: string): string {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw APIError.unauthenticated("missing or invalid authorization header");
+  }
+  
+  const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+  const parts = token.split('.');
+  
+  if (parts.length !== 3) {
+    throw APIError.unauthenticated("invalid token format");
+  }
+  
+  try {
+    // Verify signature
+    const [header, payload, signature] = parts;
+    const expectedSignature = crypto.createHmac('sha256', 'your-secret-key')
+      .update(`${header}.${payload}`)
+      .digest('base64url');
+    
+    if (signature !== expectedSignature) {
+      throw APIError.unauthenticated("invalid token signature");
+    }
+    
+    // Decode payload
+    const decodedPayload = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    
+    // Check expiration
+    if (decodedPayload.exp && decodedPayload.exp < Math.floor(Date.now() / 1000)) {
+      throw APIError.unauthenticated("token expired");
+    }
+    
+    return decodedPayload.sub;
+  } catch (error) {
+    throw APIError.unauthenticated("invalid token");
+  }
+}

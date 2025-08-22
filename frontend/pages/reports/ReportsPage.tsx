@@ -46,7 +46,7 @@ export default function ReportsPage() {
   
   // Filter states
   const [cashflowFilters, setCashflowFilters] = useState({
-    akun_id: '',
+    akun_id: 'all',
     tanggal_dari: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
     tanggal_sampai: new Date().toISOString().split('T')[0]
   });
@@ -99,9 +99,10 @@ export default function ReportsPage() {
     
     try {
       const response = await apiClient.akun.list({ tenant_id: currentTenant });
-      setAccounts(response.accounts || response || []);
+      setAccounts(Array.isArray(response.accounts) ? response.accounts : Array.isArray(response) ? response : []);
     } catch (error: any) {
       console.error('Failed to load accounts:', error);
+      setAccounts([]);
     }
   };
 
@@ -112,7 +113,9 @@ export default function ReportsPage() {
     try {
       const response = await apiClient.laporan.laporanCashflow({
         tenant_id: currentTenant,
-        ...cashflowFilters
+        akun_id: cashflowFilters.akun_id === 'all' ? '' : cashflowFilters.akun_id,
+        tanggal_dari: cashflowFilters.tanggal_dari,
+        tanggal_sampai: cashflowFilters.tanggal_sampai
       });
       setReportData(response);
       toast({
@@ -138,7 +141,8 @@ export default function ReportsPage() {
     try {
       const response = await apiClient.laporan.laporanBudgetVsActual({
         tenant_id: currentTenant,
-        ...budgetFilters
+        tahun: budgetFilters.tahun,
+        bulan: budgetFilters.bulan
       });
       setReportData(response);
       toast({
@@ -204,8 +208,8 @@ export default function ReportsPage() {
             <SelectValue placeholder="Semua akun" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Semua akun</SelectItem>
-            {accounts.map(account => (
+            <SelectItem value="all">Semua akun</SelectItem>
+            {Array.isArray(accounts) && accounts.map(account => (
               <SelectItem key={account.id} value={account.id}>
                 {account.nama_akun}
               </SelectItem>
@@ -368,48 +372,87 @@ export default function ReportsPage() {
   };
 
   const renderBudgetReport = () => {
-    if (!reportData?.data) return null;
+    if (!reportData?.detail_kategori) return null;
     
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Budget vs Actual - {budgetFilters.bulan}/{budgetFilters.tahun}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {reportData.data.map((item: BudgetVsActualData, index: number) => (
-              <div key={index} className="border rounded-lg p-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-medium">{item.kategori}</h3>
-                  <span className={`text-sm px-2 py-1 rounded ${
-                    item.variance >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+      <div className="space-y-4">
+        {reportData.ringkasan && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">Total Budget</p>
+                  <p className="text-lg font-semibold text-blue-600">
+                    {formatCurrency(reportData.ringkasan.total_budget)}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">Total Actual</p>
+                  <p className="text-lg font-semibold text-orange-600">
+                    {formatCurrency(reportData.ringkasan.total_actual)}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">Variance</p>
+                  <p className={`text-lg font-semibold ${
+                    reportData.ringkasan.total_variance >= 0 ? 'text-red-600' : 'text-green-600'
                   }`}>
-                    {item.variance >= 0 ? '+' : ''}{item.variance_percentage.toFixed(1)}%
-                  </span>
+                    {formatCurrency(Math.abs(reportData.ringkasan.total_variance))}
+                  </p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-600">Budget</p>
-                    <p className="font-medium">{formatCurrency(item.budget)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Actual</p>
-                    <p className="font-medium">{formatCurrency(item.actual)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Variance</p>
-                    <p className={`font-medium ${
-                      item.variance >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {formatCurrency(Math.abs(item.variance))}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+        )}
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Budget vs Actual - {budgetFilters.bulan}/{budgetFilters.tahun}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {reportData.detail_kategori.map((item: any, index: number) => (
+                <div key={index} className="border rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-medium">{item.nama_kategori}</h3>
+                    <span className={`text-sm px-2 py-1 rounded ${
+                      item.variance >= 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                    }`}>
+                      {item.variance >= 0 ? '+' : ''}{item.variance_persen.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-600">Budget</p>
+                      <p className="font-medium">{formatCurrency(item.budget)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Actual</p>
+                      <p className="font-medium">{formatCurrency(item.actual)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Variance</p>
+                      <p className={`font-medium ${
+                        item.variance >= 0 ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {formatCurrency(Math.abs(item.variance))}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   };
 

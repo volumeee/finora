@@ -16,7 +16,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useTenant } from '@/contexts/TenantContext';
 import { useAuth } from '@/contexts/AuthContext';
-import apiClient from '@/lib/api-client';
+import { useMemberManagement } from '@/hooks/useSettings';
+import { Skeleton } from '@/components/ui/skeleton';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
@@ -28,6 +29,56 @@ interface Member {
   peran_id: number;
   nama_peran: string;
   bergabung_pada: Date;
+}
+
+function MemberManagementSkeleton() {
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-4 w-64" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-12" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-12" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          </div>
+          <Skeleton className="h-10 w-32" />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-36" />
+          <Skeleton className="h-4 w-48" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center space-x-4">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-48" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <Skeleton className="h-6 w-16" />
+                <Skeleton className="h-8 w-8" />
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 export default function MemberManagement() {
@@ -47,6 +98,7 @@ export default function MemberManagement() {
   const { currentTenant } = useTenant();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { inviteUser, updatePermission, removeMember, listMembers, isLoading: hookLoading } = useMemberManagement();
 
   const roles = [
     { id: 1, name: 'Pemilik' },
@@ -55,120 +107,85 @@ export default function MemberManagement() {
     { id: 4, name: 'Pembaca' }
   ];
 
+  const loadMembers = async () => {
+    if (!currentTenant) return;
+    
+    setIsLoading(true);
+    try {
+      const membersList = await listMembers(currentTenant);
+      setMembers(membersList);
+    } catch (error) {
+      setMembers([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (currentTenant) {
       loadMembers();
     }
   }, [currentTenant]);
 
-  const loadMembers = async () => {
-    if (!currentTenant) return;
-    
-    try {
-      setIsLoading(true);
-      const response = await apiClient.user.listMembers({ tenant_id: currentTenant });
-      const membersData = response?.members || [];
-      setMembers(Array.isArray(membersData) ? membersData : []);
-    } catch (error: any) {
-      console.error('Failed to load members:', error);
-      toast({
-        title: "Gagal memuat anggota",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan saat memuat data anggota",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  if (isLoading) {
+    return <MemberManagementSkeleton />;
+  }
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentTenant || !user) return;
+    if (!currentTenant) return;
     
     setIsInviting(true);
-
     try {
-      await apiClient.user.inviteUser({
+      await inviteUser({
         tenant_id: currentTenant,
-        email: inviteData.email,
-        peran_id: inviteData.peran_id,
-        diundang_oleh: user.id
+        email: inviteData.email.trim(),
+        peran_id: inviteData.peran_id
       });
       
-      toast({
-        title: "Undangan terkirim",
-        description: `Undangan telah dikirim ke ${inviteData.email}`,
-      });
       setInviteData({ email: '', peran_id: 3 });
-    } catch (error: any) {
-      console.error('Invite error:', error);
-      toast({
-        title: "Gagal mengirim undangan",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan",
-        variant: "destructive",
-      });
+    } catch (error) {
+      // Error handling is done in the hook
     } finally {
       setIsInviting(false);
     }
   };
 
   const handleUpdateRole = async () => {
-    if (!selectedMember || !currentTenant || !user || !newRole) return;
+    if (!selectedMember || !currentTenant || !newRole) return;
     
     setIsUpdatingRole(true);
     try {
-      await apiClient.user.updatePermission({
+      await updatePermission({
         tenant_id: currentTenant,
         pengguna_id: selectedMember.id,
-        peran_id: parseInt(newRole),
-        updated_by: user.id
-      });
-      
-      toast({
-        title: "Peran berhasil diperbarui",
-        description: `Peran ${selectedMember.nama_lengkap} telah diubah`,
+        peran_id: parseInt(newRole)
       });
       
       setIsRoleDialogOpen(false);
       setSelectedMember(null);
       setNewRole('');
-      loadMembers();
-    } catch (error: any) {
-      console.error('Update role error:', error);
-      toast({
-        title: "Gagal memperbarui peran",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan",
-        variant: "destructive",
-      });
+      await loadMembers();
+    } catch (error) {
+      // Error handling is done in the hook
     } finally {
       setIsUpdatingRole(false);
     }
   };
 
   const handleRemoveMember = async () => {
-    if (!currentTenant || !user || !deleteDialog.member) return;
+    if (!currentTenant || !deleteDialog.member) return;
     
     try {
-      await apiClient.user.removeMember({
+      await removeMember({
         tenant_id: currentTenant,
-        pengguna_id: deleteDialog.member.id,
-        removed_by: user.id
-      });
-      
-      toast({
-        title: "Anggota berhasil dihapus",
-        description: `${deleteDialog.member.nama_lengkap} telah dihapus dari organisasi`,
+        pengguna_id: deleteDialog.member.id
       });
       
       setDeleteDialog({ open: false, member: null });
-      loadMembers();
-    } catch (error: any) {
-      console.error('Remove member error:', error);
-      toast({
-        title: "Gagal menghapus anggota",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan",
-        variant: "destructive",
-      });
+      await loadMembers();
+    } catch (error) {
+      // Error handling is done in the hook
     }
   };
 

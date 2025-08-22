@@ -1,50 +1,90 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/components/ui/use-toast';
+import { useProfileSettings } from '@/hooks/useSettings';
+import { Skeleton } from '@/components/ui/skeleton';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+
+function ProfileSettingsSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-6 w-32" />
+        <Skeleton className="h-4 w-48" />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+        <Skeleton className="h-10 w-32" />
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function ProfileSettings() {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
+  const { user, updateUser } = useAuth();
+  const { getProfile, updateProfile, isLoading } = useProfileSettings();
   const [formData, setFormData] = useState({
-    nama_lengkap: user?.nama_lengkap || '',
-    email: user?.email || '',
-    no_telepon: user?.no_telepon || ''
+    nama_lengkap: '',
+    email: '',
+    no_telepon: ''
   });
+  const [initialLoading, setInitialLoading] = useState(true);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  const loadProfile = async () => {
+    setInitialLoading(true);
+    try {
+      const profile = await getProfile();
+      setFormData({
+        nama_lengkap: profile.nama_lengkap || '',
+        email: profile.email || '',
+        no_telepon: profile.no_telepon || ''
+      });
+    } catch (error) {
+      // Fallback to user from context if API fails
+      if (user) {
+        setFormData({
+          nama_lengkap: user.nama_lengkap || '',
+          email: user.email || '',
+          no_telepon: user.no_telepon || ''
+        });
+      }
+    } finally {
+      setInitialLoading(false);
+    }
   };
+
+  useEffect(() => {
+    loadProfile();
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
 
     try {
-      // TODO: Implement profile update API call
-      toast({
-        title: "Profil diperbarui",
-        description: "Informasi profil Anda berhasil diperbarui",
-      });
-    } catch (error: unknown) {
-      console.error('Profile update error:', error);
-      toast({
-        title: "Gagal memperbarui profil",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+      const updatedProfile = await updateProfile(formData);
+      updateUser?.(updatedProfile);
+    } catch (error) {
+      // Error handling is done in the hook
     }
   };
+
+  if (initialLoading) {
+    return <ProfileSettingsSkeleton />;
+  }
 
   return (
     <Card>
@@ -60,9 +100,9 @@ export default function ProfileSettings() {
             <Label htmlFor="nama_lengkap">Nama Lengkap</Label>
             <Input
               id="nama_lengkap"
-              name="nama_lengkap"
               value={formData.nama_lengkap}
-              onChange={handleChange}
+              onChange={(e) => setFormData(prev => ({ ...prev, nama_lengkap: e.target.value }))}
+              disabled={isLoading}
               required
             />
           </div>
@@ -71,10 +111,10 @@ export default function ProfileSettings() {
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
-              name="email"
               type="email"
               value={formData.email}
-              onChange={handleChange}
+              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+              disabled={isLoading}
               required
             />
           </div>
@@ -83,13 +123,14 @@ export default function ProfileSettings() {
             <Label htmlFor="no_telepon">No. Telepon</Label>
             <Input
               id="no_telepon"
-              name="no_telepon"
               value={formData.no_telepon}
-              onChange={handleChange}
+              onChange={(e) => setFormData(prev => ({ ...prev, no_telepon: e.target.value }))}
+              disabled={isLoading}
             />
           </div>
 
           <Button type="submit" disabled={isLoading}>
+            {isLoading && <LoadingSpinner size="sm" className="mr-2" />}
             {isLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
           </Button>
         </form>

@@ -1,51 +1,87 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTenant } from '@/contexts/TenantContext';
-import { useToast } from '@/components/ui/use-toast';
+import { useTenantSettings } from '@/hooks/useSettings';
+import { Skeleton } from '@/components/ui/skeleton';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+
+function TenantSettingsSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-4 w-56" />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-20" />
+          <div className="flex">
+            <Skeleton className="h-10 flex-1 rounded-r-none" />
+            <Skeleton className="h-10 w-20 rounded-l-none" />
+          </div>
+        </div>
+        <Skeleton className="h-10 w-32" />
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function TenantSettings() {
-  const { getCurrentTenant } = useTenant();
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const currentTenant = getCurrentTenant();
-  const [formData, setFormData] = useState({
-    nama: currentTenant?.nama || '',
-    sub_domain: currentTenant?.sub_domain || ''
-  });
+  const { getCurrentTenant, currentTenant: tenantId } = useTenant();
+  const { getTenant, updateTenant, isLoading } = useTenantSettings();
+  const [formData, setFormData] = useState({ nama: '', sub_domain: '' });
+  const [initialLoading, setInitialLoading] = useState(true);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  const loadTenant = async () => {
+    if (!tenantId) return;
+    
+    setInitialLoading(true);
+    try {
+      const tenant = await getTenant(tenantId);
+      setFormData({
+        nama: tenant.nama || '',
+        sub_domain: tenant.sub_domain || ''
+      });
+    } catch (error) {
+      // Fallback to context data if API fails
+      const currentTenant = getCurrentTenant();
+      if (currentTenant) {
+        setFormData({
+          nama: currentTenant.nama || '',
+          sub_domain: currentTenant.sub_domain || ''
+        });
+      }
+    } finally {
+      setInitialLoading(false);
+    }
   };
+
+  useEffect(() => {
+    loadTenant();
+  }, [tenantId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-
+    
+    if (!tenantId) return;
+    
     try {
-      // TODO: Implement tenant update API call
-      toast({
-        title: "Organisasi diperbarui",
-        description: "Informasi organisasi berhasil diperbarui",
-      });
-    } catch (error: unknown) {
-      console.error('Tenant update error:', error);
-      toast({
-        title: "Gagal memperbarui organisasi",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+      await updateTenant(tenantId, formData);
+    } catch (error) {
+      // Error handling is done in the hook
     }
   };
+
+  if (initialLoading) {
+    return <TenantSettingsSkeleton />;
+  }
 
   return (
     <Card>
@@ -61,9 +97,9 @@ export default function TenantSettings() {
             <Label htmlFor="nama">Nama Organisasi</Label>
             <Input
               id="nama"
-              name="nama"
               value={formData.nama}
-              onChange={handleChange}
+              onChange={(e) => setFormData(prev => ({ ...prev, nama: e.target.value }))}
+              disabled={isLoading}
               required
             />
           </div>
@@ -73,10 +109,10 @@ export default function TenantSettings() {
             <div className="flex">
               <Input
                 id="sub_domain"
-                name="sub_domain"
                 value={formData.sub_domain}
-                onChange={handleChange}
+                onChange={(e) => setFormData(prev => ({ ...prev, sub_domain: e.target.value }))}
                 className="rounded-r-none"
+                disabled={isLoading}
                 required
               />
               <span className="inline-flex items-center px-3 rounded-r-md border border-l-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
@@ -86,6 +122,7 @@ export default function TenantSettings() {
           </div>
 
           <Button type="submit" disabled={isLoading}>
+            {isLoading && <LoadingSpinner size="sm" className="mr-2" />}
             {isLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
           </Button>
         </form>

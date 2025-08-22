@@ -185,10 +185,12 @@ export namespace akun {
 /**
  * Import the endpoint handlers to derive the types for the client.
  */
+import { getProfile as api_auth_get_profile_getProfile } from "~backend/auth/get_profile";
 import { login as api_auth_login_login } from "~backend/auth/login";
 import { logout as api_auth_logout_logout } from "~backend/auth/logout";
 import { refreshToken as api_auth_refresh_refreshToken } from "~backend/auth/refresh";
 import { register as api_auth_register_register } from "~backend/auth/register";
+import { updateProfile as api_auth_update_profile_updateProfile } from "~backend/auth/update_profile";
 
 export namespace auth {
 
@@ -197,10 +199,21 @@ export namespace auth {
 
         constructor(baseClient: BaseClient) {
             this.baseClient = baseClient
+            this.getProfile = this.getProfile.bind(this)
             this.login = this.login.bind(this)
             this.logout = this.logout.bind(this)
             this.refreshToken = this.refreshToken.bind(this)
             this.register = this.register.bind(this)
+            this.updateProfile = this.updateProfile.bind(this)
+        }
+
+        /**
+         * Gets user profile information.
+         */
+        public async getProfile(params: RequestType<typeof api_auth_get_profile_getProfile>): Promise<ResponseType<typeof api_auth_get_profile_getProfile>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/auth/profile`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_auth_get_profile_getProfile>
         }
 
         /**
@@ -235,6 +248,15 @@ export namespace auth {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/auth/register`, {method: "POST", body: JSON.stringify(params)})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_auth_register_register>
+        }
+
+        /**
+         * Updates user profile information.
+         */
+        public async updateProfile(params: RequestType<typeof api_auth_update_profile_updateProfile>): Promise<ResponseType<typeof api_auth_update_profile_updateProfile>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/auth/profile`, {method: "PUT", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_auth_update_profile_updateProfile>
         }
     }
 }
