@@ -4,7 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { DialogTrigger } from '@/components/ui/dialog';
+import {
+  ResponsiveDialog,
+  ResponsiveDialogForm,
+  ResponsiveDialogActions,
+  ResponsiveDialogButton,
+} from '@/components/ui/ResponsiveDialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, Edit, Trash2, Wallet, CreditCard, PiggyBank } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
@@ -234,105 +240,108 @@ export default function AccountsPage(): JSX.Element {
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">Akun</h1>
             <p className="text-gray-600 text-sm sm:text-base truncate">Kelola akun bank, e-wallet, dan aset Anda</p>
           </div>
-        <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-          <DialogTrigger asChild>
-            <Button className="w-full sm:w-auto">
-              <Plus className="mr-2 h-4 w-4" />
-              Tambah Akun
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingAccount ? 'Edit Akun' : 'Tambah Akun Baru'}</DialogTitle>
-              <DialogDescription>
-                {editingAccount ? 'Perbarui informasi akun' : 'Buat akun keuangan baru'}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="nama_akun">Nama Akun</Label>
-                <Input
-                  id="nama_akun"
-                  placeholder="Contoh: BCA Tabungan"
-                  value={formData.nama_akun}
-                  onChange={(e) => setFormData(prev => ({ ...prev, nama_akun: e.target.value }))}
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="jenis">Jenis Akun</Label>
-                <Select value={formData.jenis} onValueChange={(value: AccountType) => setFormData(prev => ({ ...prev, jenis: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih jenis akun" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accountTypes.map(type => (
-                      <SelectItem key={type.value} value={type.value}>
-                        <div className="flex items-center gap-2">
-                          <type.icon className="h-4 w-4" />
-                          {type.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+        <ResponsiveDialog
+          open={isDialogOpen}
+          onOpenChange={handleDialogClose}
+          title={editingAccount ? 'Edit Akun' : 'Tambah Akun Baru'}
+          description={editingAccount ? 'Perbarui informasi akun' : 'Buat akun keuangan baru'}
+          size="md"
+        >
+          <ResponsiveDialogForm onSubmit={handleSubmit}>
+            <div className="space-y-2">
+              <Label htmlFor="nama_akun">Nama Akun</Label>
+              <Input
+                id="nama_akun"
+                placeholder="Contoh: BCA Tabungan"
+                value={formData.nama_akun}
+                onChange={(e) => setFormData(prev => ({ ...prev, nama_akun: e.target.value }))}
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="jenis">Jenis Akun</Label>
+              <Select value={formData.jenis} onValueChange={(value: AccountType) => setFormData(prev => ({ ...prev, jenis: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih jenis akun" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accountTypes.map(type => (
+                    <SelectItem key={type.value} value={type.value}>
+                      <div className="flex items-center gap-2">
+                        <type.icon className="h-4 w-4" />
+                        {type.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="saldo_awal">Saldo Awal</Label>
-                <CurrencyInput
-                  value={formData.saldo_awal}
-                  onChange={(value) => setFormData(prev => ({ ...prev, saldo_awal: value }))}
-                  placeholder="Masukkan saldo awal"
-                  required
-                  maxLength={12}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="saldo_awal">Saldo Awal</Label>
+              <CurrencyInput
+                value={formData.saldo_awal}
+                onChange={(value) => setFormData(prev => ({ ...prev, saldo_awal: value }))}
+                placeholder="Masukkan saldo awal"
+                required
+                maxLength={12}
+              />
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="mata_uang">Mata Uang</Label>
-                <Select value={formData.mata_uang} onValueChange={(value: Currency) => setFormData(prev => ({ ...prev, mata_uang: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih mata uang" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="IDR">IDR - Rupiah</SelectItem>
-                    <SelectItem value="USD">USD - US Dollar</SelectItem>
-                    <SelectItem value="EUR">EUR - Euro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="mata_uang">Mata Uang</Label>
+              <Select value={formData.mata_uang} onValueChange={(value: Currency) => setFormData(prev => ({ ...prev, mata_uang: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih mata uang" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="IDR">IDR - Rupiah</SelectItem>
+                  <SelectItem value="USD">USD - US Dollar</SelectItem>
+                  <SelectItem value="EUR">EUR - Euro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="keterangan">Keterangan (Opsional)</Label>
-                <Input
-                  id="keterangan"
-                  placeholder="Deskripsi tambahan"
-                  value={formData.keterangan}
-                  onChange={(e) => setFormData(prev => ({ ...prev, keterangan: e.target.value.slice(0, 100) }))}
-                  maxLength={100}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="keterangan">Keterangan (Opsional)</Label>
+              <Input
+                id="keterangan"
+                placeholder="Deskripsi tambahan"
+                value={formData.keterangan}
+                onChange={(e) => setFormData(prev => ({ ...prev, keterangan: e.target.value.slice(0, 100) }))}
+                maxLength={100}
+              />
+            </div>
 
-              <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
-                  Batal
-                </Button>
-                <Button type="submit" disabled={isSubmitting} className="flex-1">
-                  {isSubmitting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                      Menyimpan...
-                    </>
-                  ) : (
-                    editingAccount ? 'Perbarui' : 'Tambah'
-                  )}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+            <ResponsiveDialogActions>
+              <ResponsiveDialogButton
+                variant="outline"
+                onClick={() => setIsDialogOpen(false)}
+              >
+                Batal
+              </ResponsiveDialogButton>
+              <ResponsiveDialogButton
+                type="submit"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                    Menyimpan...
+                  </>
+                ) : (
+                  editingAccount ? 'Perbarui' : 'Tambah'
+                )}
+              </ResponsiveDialogButton>
+            </ResponsiveDialogActions>
+          </ResponsiveDialogForm>
+        </ResponsiveDialog>
+        
+        <Button className="w-full sm:w-auto" onClick={() => setIsDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Tambah Akun
+        </Button>
       </div>
 
       <Card>

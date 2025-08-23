@@ -17,6 +17,12 @@ interface UserProfile {
   avatar_url?: string;
   dibuat_pada: Date;
   diubah_pada: Date;
+  tenants: {
+    id: string;
+    nama: string;
+    sub_domain: string;
+    peran: string;
+  }[];
 }
 
 // Gets user profile information.
@@ -25,17 +31,43 @@ export const getProfile = api<GetProfileRequest, UserProfile>(
   async (req) => {
     const userId = extractUserIdFromToken(req.authorization);
     
-    const row = await tenantDB.queryRow<UserProfile>`
+    const user = await tenantDB.queryRow<{
+      id: string;
+      nama_lengkap: string;
+      email: string;
+      no_telepon?: string;
+      avatar_url?: string;
+      dibuat_pada: Date;
+      diubah_pada: Date;
+    }>`
       SELECT id, nama_lengkap, email, no_telepon, avatar_url, dibuat_pada, diubah_pada
       FROM pengguna
       WHERE id = ${userId} AND dihapus_pada IS NULL
     `;
     
-    if (!row) {
+    if (!user) {
       throw APIError.notFound("user not found");
     }
     
-    return row;
+    // Get user's tenants
+    const tenants = await tenantDB.queryAll<{
+      id: string;
+      nama: string;
+      sub_domain: string;
+      peran: string;
+    }>`
+      SELECT t.id, t.nama, t.sub_domain, p.nama_peran as peran
+      FROM tenants t
+      JOIN pengguna_tenant pt ON t.id = pt.tenant_id
+      JOIN peran p ON pt.peran_id = p.id
+      WHERE pt.pengguna_id = ${userId} AND t.dihapus_pada IS NULL
+      ORDER BY pt.bergabung_pada ASC
+    `;
+    
+    return {
+      ...user,
+      tenants
+    };
   }
 );
 

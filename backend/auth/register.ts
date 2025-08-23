@@ -33,6 +33,7 @@ export interface RegisterResponse {
     nama: string;
     sub_domain: string;
   };
+  selected_tenant: string;
   access_token: string;
   refresh_token: string;
 }
@@ -134,6 +135,7 @@ export const register = api<RegisterRequest, RegisterResponse>(
       return {
         pengguna,
         tenant,
+        selected_tenant: tenant.id,
         access_token: accessToken,
         refresh_token: refreshToken
       };

@@ -25,6 +25,7 @@ export interface LoginResponse {
     sub_domain: string;
     peran: string;
   }[];
+  selected_tenant?: string;
   access_token: string;
   refresh_token: string;
 }
@@ -93,6 +94,7 @@ export const login = api<LoginRequest, LoginResponse>(
         no_telepon: pengguna.no_telepon
       },
       tenants,
+      selected_tenant: tenants.length > 0 ? tenants[0].id : undefined,
       access_token: accessToken,
       refresh_token: refreshToken
     };

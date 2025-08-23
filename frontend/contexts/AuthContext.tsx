@@ -88,6 +88,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(response.pengguna);
       setTenants(response.tenants);
       
+      // Auto-select tenant from backend response
+      if (response.selected_tenant) {
+        localStorage.setItem('current_tenant', response.selected_tenant);
+      }
+      
       // Store user data for persistence
       localStorage.setItem('user_data', JSON.stringify(response.pengguna));
       localStorage.setItem('tenants_data', JSON.stringify(response.tenants));
@@ -111,6 +116,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(response.pengguna);
       setTenants(tenantData);
       
+      // Auto-select the newly created tenant from backend response
+      if (response.selected_tenant) {
+        localStorage.setItem('current_tenant', response.selected_tenant);
+      }
+      
       // Store user data for persistence
       localStorage.setItem('user_data', JSON.stringify(response.pengguna));
       localStorage.setItem('tenants_data', JSON.stringify(tenantData));
@@ -130,12 +140,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTenants([]);
       localStorage.removeItem('user_data');
       localStorage.removeItem('tenants_data');
+      localStorage.removeItem('current_tenant');
     }
   };
 
   const refreshAuth = async () => {
-    // This would typically fetch fresh user data
-    // For now, we'll keep the existing user data
+    try {
+      if (!user) return;
+      
+      // Re-fetch user's profile including tenants
+      const response = await apiClient.auth.getProfile();
+      if (response.tenants) {
+        setTenants(response.tenants);
+        localStorage.setItem('tenants_data', JSON.stringify(response.tenants));
+      }
+    } catch (error) {
+      console.error('Failed to refresh auth:', error);
+    }
   };
 
   return (

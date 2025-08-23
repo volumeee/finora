@@ -16,14 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DialogTrigger } from "@/components/ui/dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogForm,
+  ResponsiveDialogActions,
+  ResponsiveDialogButton,
+} from "@/components/ui/ResponsiveDialog";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -360,179 +359,178 @@ export default function GoalsPage(): JSX.Element {
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">Tujuan Tabungan</h1>
             <p className="text-gray-600 text-sm sm:text-base truncate">Tetapkan dan capai tujuan keuangan Anda</p>
           </div>
-        <Dialog open={isGoalDialogOpen} onOpenChange={handleDialogClose}>
-          <DialogTrigger asChild>
-            <Button className="w-full sm:w-auto">
-              <Plus className="mr-2 h-4 w-4" />
-              Tambah Tujuan
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingGoal ? 'Edit Tujuan' : 'Tambah Tujuan Baru'}</DialogTitle>
-              <DialogDescription>
-                {editingGoal ? 'Perbarui informasi tujuan tabungan' : 'Buat tujuan tabungan baru'}
-              </DialogDescription>
-            </DialogHeader>
-            
-            <form onSubmit={handleSubmitGoal} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="nama_tujuan">Nama Tujuan</Label>
-                <Input
-                  id="nama_tujuan"
-                  placeholder="Contoh: Liburan ke Bali"
-                  value={goalFormData.nama_tujuan}
-                  onChange={(e) => setGoalFormData(prev => ({ ...prev, nama_tujuan: e.target.value }))}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="jenis_tujuan">Jenis Tujuan</Label>
-                <Select value={goalFormData.jenis_tujuan} onValueChange={(value: GoalType) => setGoalFormData(prev => ({ ...prev, jenis_tujuan: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih jenis tujuan" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {goalTypes.map(type => (
-                      <SelectItem key={type.value} value={type.value}>
-                        <div className="flex items-center gap-2">
-                          <span>{type.icon}</span>
-                          {type.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="target_nominal">Target Nominal</Label>
-                <CurrencyInput
-                  value={goalFormData.target_nominal}
-                  onChange={(value) => setGoalFormData(prev => ({ ...prev, target_nominal: value }))}
-                  placeholder="Masukkan target nominal"
-                  required
-                  maxLength={12}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="tenggat_tanggal">Tenggat Waktu (Opsional)</Label>
-                <Input
-                  id="tenggat_tanggal"
-                  type="date"
-                  value={goalFormData.tenggat_tanggal}
-                  onChange={(e) => setGoalFormData(prev => ({ ...prev, tenggat_tanggal: e.target.value }))}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="catatan">Catatan (Opsional)</Label>
-                <Input
-                  id="catatan"
-                  placeholder="Deskripsi tujuan"
-                  value={goalFormData.catatan}
-                  onChange={(e) => setGoalFormData(prev => ({ ...prev, catatan: e.target.value.slice(0, 100) }))}
-                  maxLength={100}
-                />
-              </div>
-
-              <div className="flex gap-2 pt-4">
-                <Button type="button" variant="outline" onClick={() => setIsGoalDialogOpen(false)} className="flex-1">
-                  Batal
-                </Button>
-                <Button type="submit" disabled={isSubmitting} className="flex-1">
-                  {isSubmitting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                      Menyimpan...
-                    </>
-                  ) : (
-                    editingGoal ? 'Perbarui' : 'Tambah'
-                  )}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <Dialog open={isContributionDialogOpen} onOpenChange={handleContributionDialogClose}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Tambah Kontribusi</DialogTitle>
-            <DialogDescription>
-              Tambahkan kontribusi untuk tujuan: {selectedGoal?.nama_tujuan}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={handleSubmitContribution} className="space-y-4">
+        <ResponsiveDialog
+          open={isGoalDialogOpen}
+          onOpenChange={handleDialogClose}
+          title={editingGoal ? 'Edit Tujuan' : 'Tambah Tujuan Baru'}
+          description={editingGoal ? 'Perbarui informasi tujuan tabungan' : 'Buat tujuan tabungan baru'}
+          size="md"
+        >
+          <ResponsiveDialogForm onSubmit={handleSubmitGoal}>
             <div className="space-y-2">
-              <Label htmlFor="contribution_nominal">Nominal Kontribusi</Label>
+              <Label htmlFor="nama_tujuan">Nama Tujuan</Label>
+              <Input
+                id="nama_tujuan"
+                placeholder="Contoh: Liburan ke Bali"
+                value={goalFormData.nama_tujuan}
+                onChange={(e) => setGoalFormData(prev => ({ ...prev, nama_tujuan: e.target.value }))}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="jenis_tujuan">Jenis Tujuan</Label>
+              <Select value={goalFormData.jenis_tujuan} onValueChange={(value: GoalType) => setGoalFormData(prev => ({ ...prev, jenis_tujuan: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih jenis tujuan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {goalTypes.map(type => (
+                    <SelectItem key={type.value} value={type.value}>
+                      <div className="flex items-center gap-2">
+                        <span>{type.icon}</span>
+                        {type.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="target_nominal">Target Nominal</Label>
               <CurrencyInput
-                value={contributionFormData.nominal}
-                onChange={(value) => setContributionFormData(prev => ({ ...prev, nominal: value }))}
-                placeholder="Masukkan nominal kontribusi"
+                value={goalFormData.target_nominal}
+                onChange={(value) => setGoalFormData(prev => ({ ...prev, target_nominal: value }))}
+                placeholder="Masukkan target nominal"
                 required
                 maxLength={12}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="tanggal_kontribusi">Tanggal Kontribusi</Label>
+              <Label htmlFor="tenggat_tanggal">Tenggat Waktu (Opsional)</Label>
               <Input
-                id="tanggal_kontribusi"
+                id="tenggat_tanggal"
                 type="date"
-                value={contributionFormData.tanggal_kontribusi}
-                onChange={(e) => setContributionFormData(prev => ({ ...prev, tanggal_kontribusi: e.target.value }))}
-                required
+                value={goalFormData.tenggat_tanggal}
+                onChange={(e) => setGoalFormData(prev => ({ ...prev, tenggat_tanggal: e.target.value }))}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="contribution_catatan">Catatan (Opsional)</Label>
+              <Label htmlFor="catatan">Catatan (Opsional)</Label>
               <Input
-                id="contribution_catatan"
-                placeholder="Deskripsi kontribusi"
-                value={contributionFormData.catatan}
-                onChange={(e) => setContributionFormData(prev => ({ ...prev, catatan: e.target.value.slice(0, 100) }))}
+                id="catatan"
+                placeholder="Deskripsi tujuan"
+                value={goalFormData.catatan}
+                onChange={(e) => setGoalFormData(prev => ({ ...prev, catatan: e.target.value.slice(0, 100) }))}
                 maxLength={100}
               />
             </div>
 
-            {contributions.length > 0 && (
-              <div className="space-y-2">
-                <Label>Kontribusi Sebelumnya</Label>
-                <div className="max-h-32 overflow-y-auto space-y-2">
-                  {contributions.slice(0, 3).map((contribution) => (
-                    <div key={contribution.id} className="flex justify-between text-sm p-2 bg-gray-50 rounded">
-                      <span>{safeFormatCurrency(contribution.nominal_kontribusi)}</span>
-                      <span>{new Date(contribution.tanggal_kontribusi).toLocaleDateString('id-ID')}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsContributionDialogOpen(false)} className="flex-1">
+            <ResponsiveDialogActions>
+              <ResponsiveDialogButton
+                variant="outline"
+                onClick={() => setIsGoalDialogOpen(false)}
+              >
                 Batal
-              </Button>
-              <Button type="submit" disabled={isSubmitting} className="flex-1">
+              </ResponsiveDialogButton>
+              <ResponsiveDialogButton type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                    Menambah...
+                    Menyimpan...
                   </>
                 ) : (
-                  'Tambah Kontribusi'
+                  editingGoal ? 'Perbarui' : 'Tambah'
                 )}
-              </Button>
+              </ResponsiveDialogButton>
+            </ResponsiveDialogActions>
+          </ResponsiveDialogForm>
+        </ResponsiveDialog>
+        
+        <Button className="w-full sm:w-auto" onClick={() => setIsGoalDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Tambah Tujuan
+        </Button>
+      </div>
+
+      <ResponsiveDialog
+        open={isContributionDialogOpen}
+        onOpenChange={handleContributionDialogClose}
+        title="Tambah Kontribusi"
+        description={`Tambahkan kontribusi untuk tujuan: ${selectedGoal?.nama_tujuan}`}
+        size="md"
+      >
+        <ResponsiveDialogForm onSubmit={handleSubmitContribution}>
+          <div className="space-y-2">
+            <Label htmlFor="contribution_nominal">Nominal Kontribusi</Label>
+            <CurrencyInput
+              value={contributionFormData.nominal}
+              onChange={(value) => setContributionFormData(prev => ({ ...prev, nominal: value }))}
+              placeholder="Masukkan nominal kontribusi"
+              required
+              maxLength={12}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tanggal_kontribusi">Tanggal Kontribusi</Label>
+            <Input
+              id="tanggal_kontribusi"
+              type="date"
+              value={contributionFormData.tanggal_kontribusi}
+              onChange={(e) => setContributionFormData(prev => ({ ...prev, tanggal_kontribusi: e.target.value }))}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="contribution_catatan">Catatan (Opsional)</Label>
+            <Input
+              id="contribution_catatan"
+              placeholder="Deskripsi kontribusi"
+              value={contributionFormData.catatan}
+              onChange={(e) => setContributionFormData(prev => ({ ...prev, catatan: e.target.value.slice(0, 100) }))}
+              maxLength={100}
+            />
+          </div>
+
+          {contributions.length > 0 && (
+            <div className="space-y-2">
+              <Label>Kontribusi Sebelumnya</Label>
+              <div className="max-h-32 overflow-y-auto space-y-2">
+                {contributions.slice(0, 3).map((contribution) => (
+                  <div key={contribution.id} className="flex justify-between text-sm p-2 bg-gray-50 rounded">
+                    <span>{safeFormatCurrency(contribution.nominal_kontribusi)}</span>
+                    <span>{new Date(contribution.tanggal_kontribusi).toLocaleDateString('id-ID')}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          )}
+
+          <ResponsiveDialogActions>
+            <ResponsiveDialogButton
+              variant="outline"
+              onClick={() => setIsContributionDialogOpen(false)}
+            >
+              Batal
+            </ResponsiveDialogButton>
+            <ResponsiveDialogButton type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  Menambah...
+                </>
+              ) : (
+                'Tambah Kontribusi'
+              )}
+            </ResponsiveDialogButton>
+          </ResponsiveDialogActions>
+        </ResponsiveDialogForm>
+      </ResponsiveDialog>
 
       <div className="grid gap-6">
         {isLoading ? (

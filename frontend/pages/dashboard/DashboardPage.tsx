@@ -14,15 +14,13 @@ import {
   Target,
   CreditCard,
   Plus,
-  ArrowUpRight,
-  ArrowDownLeft,
-  ArrowRightLeft,
 } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import apiClient from "@/lib/api-client";
 import { useNavigate } from "react-router-dom";
 import { formatCurrency, getTransactionColor } from "@/lib/format";
+import { TransactionListItem } from "@/components/ui/TransactionListItem";
 import {
   StatsCardSkeleton,
   TransactionSkeleton,
@@ -46,6 +44,13 @@ interface Transaction {
   tanggal_transaksi: string;
   catatan?: string;
   kategori_nama?: string;
+  akun_id: string;
+  transfer_info?: {
+    type: "masuk" | "keluar";
+    paired_account_id: string;
+    paired_transaction_id: string;
+    transfer_id: string;
+  };
 }
 
 interface Goal {
@@ -82,9 +87,7 @@ const calculateProgress = (current: number, target: number): number => {
 
 export default function DashboardPage(): JSX.Element {
   const [stats, setStats] = useState<DashboardStats>(INITIAL_STATS);
-  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>(
-    []
-  );
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [goalProgress, setGoalProgress] = useState<Goal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -146,20 +149,7 @@ export default function DashboardPage(): JSX.Element {
     }
   }, [loadDashboardData]);
 
-  const getTransactionIcon = (type: TransactionType): JSX.Element => {
-    switch (type) {
-      case "pemasukan":
-      case "income":
-        return <ArrowDownLeft className="h-4 w-4 text-green-600" />;
-      case "pengeluaran":
-      case "expense":
-        return <ArrowUpRight className="h-4 w-4 text-red-600" />;
-      case "transfer":
-        return <ArrowRightLeft className="h-4 w-4 text-blue-600" />;
-      default:
-        return <ArrowUpRight className="h-4 w-4 text-gray-600" />;
-    }
-  };
+
 
   const handleNavigateToTransactions = (): void =>
     navigate("/dashboard/transactions");
@@ -365,67 +355,16 @@ export default function DashboardPage(): JSX.Element {
                 </div>
               ) : (
                 <div className="space-y-2 sm:space-y-3 max-h-80 overflow-y-auto">
-                  {recentTransactions.map((transaction) => {
-                    const colors = getTransactionColor(transaction.jenis);
-                    const isIncome =
-                      transaction.jenis === "pemasukan" ||
-                      transaction.jenis === "income";
-                    const isExpense =
-                      transaction.jenis === "pengeluaran" ||
-                      transaction.jenis === "expense";
-
-                    return (
-                      <div
-                        key={transaction.id}
-                        className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border-l-4 ${colors.border} ${colors.bg} hover:shadow-sm transition-shadow`}
-                      >
-                        <div
-                          className={`p-1.5 sm:p-2 rounded-lg ${colors.icon} flex-shrink-0`}
-                        >
-                          {getTransactionIcon(transaction.jenis)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p
-                            className="font-medium text-gray-900 text-sm sm:text-base truncate"
-                            title={
-                              transaction.catatan ||
-                              transaction.kategori_nama ||
-                              "Transaksi"
-                            }
-                          >
-                            {transaction.catatan ||
-                              transaction.kategori_nama ||
-                              "Transaksi"}
-                          </p>
-                          <p className="text-xs sm:text-sm text-gray-600 truncate">
-                            {new Date(
-                              transaction.tanggal_transaksi
-                            ).toLocaleDateString("id-ID")}
-                          </p>
-                        </div>
-                        <div className="text-right flex-shrink-0 min-w-0">
-                          <p
-                            className={`font-semibold text-sm sm:text-base ${colors.text} truncate`}
-                            title={`${
-                              isIncome ? "+" : isExpense ? "-" : ""
-                            }${safeFormatCurrency(transaction.nominal)}`}
-                          >
-                            {isIncome ? "+" : isExpense ? "-" : ""}
-                            {safeFormatCurrency(transaction.nominal)}
-                          </p>
-                          <p
-                            className={`text-xs sm:text-sm capitalize ${colors.light} truncate`}
-                          >
-                            {transaction.jenis === "income"
-                              ? "pemasukan"
-                              : transaction.jenis === "expense"
-                              ? "pengeluaran"
-                              : transaction.jenis}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {recentTransactions.map((transaction) => (
+                    <TransactionListItem
+                      key={transaction.id}
+                      transaction={transaction}
+                      getAccountName={(accountId) => "Akun"}
+                      getCategoryName={(categoryId) => transaction.catatan || transaction.kategori_nama || "Transaksi"}
+                      showActions={false}
+                      compact={true}
+                    />
+                  ))}
                 </div>
               )}
             </CardContent>

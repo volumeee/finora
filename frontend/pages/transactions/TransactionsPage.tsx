@@ -16,23 +16,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DialogTrigger } from "@/components/ui/dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogForm,
+  ResponsiveDialogActions,
+  ResponsiveDialogButton,
+} from "@/components/ui/ResponsiveDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Plus,
   Edit,
   Trash2,
-  ArrowUpRight,
-  ArrowDownLeft,
-  ArrowRightLeft,
 } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -41,6 +37,7 @@ import { TransactionSkeleton } from "@/components/ui/skeletons";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { formatCurrency, getTransactionColor } from "@/lib/format";
+import { TransactionListItem } from "@/components/ui/TransactionListItem";
 
 type TransactionType = "pemasukan" | "pengeluaran" | "transfer";
 type CategoryType = "pemasukan" | "pengeluaran";
@@ -57,6 +54,12 @@ interface Transaction {
   pengguna_id: string;
   dibuat_pada: Date;
   diubah_pada: Date;
+  transfer_info?: {
+    type: "masuk" | "keluar";
+    paired_account_id: string;
+    paired_transaction_id: string;
+    transfer_id: string;
+  };
 }
 
 interface Account {
@@ -341,23 +344,19 @@ export default function TransactionsPage(): JSX.Element {
     setEditingTransaction(null);
   };
 
-  const getTransactionIcon = (type: TransactionType): JSX.Element => {
-    switch (type) {
-      case "pemasukan":
-        return <ArrowDownLeft className="h-4 w-4 text-green-600" />;
-      case "pengeluaran":
-        return <ArrowUpRight className="h-4 w-4 text-red-600" />;
-      case "transfer":
-        return <ArrowRightLeft className="h-4 w-4 text-blue-600" />;
-      default:
-        return <ArrowUpRight className="h-4 w-4" />;
-    }
-  };
+
 
   const getAccountName = (accountId: string): string => {
     const account = accounts.find((a) => a.id === accountId);
-    return account?.nama_akun || "Unknown Account";
+    if (account) return account.nama_akun;
+    
+    const goal = goals.find((g) => g.id === accountId);
+    if (goal) return `🎯 ${goal.nama_tujuan}`;
+    
+    return "Unknown Account";
   };
+
+
 
   const getCategoryName = (categoryId?: string): string => {
     if (!categoryId) return "-";
@@ -403,22 +402,13 @@ export default function TransactionsPage(): JSX.Element {
               Kelola semua transaksi keuangan Anda
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-            <DialogTrigger asChild>
-              <Button className="w-full sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" />
-                Tambah Transaksi
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingTransaction ? "Edit Transaksi" : "Tambah Transaksi Baru"}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingTransaction ? "Perbarui informasi transaksi" : "Buat transaksi atau transfer baru"}
-                </DialogDescription>
-              </DialogHeader>
+          <ResponsiveDialog
+            open={isDialogOpen}
+            onOpenChange={handleDialogClose}
+            title={editingTransaction ? "Edit Transaksi" : "Tambah Transaksi Baru"}
+            description={editingTransaction ? "Perbarui informasi transaksi" : "Buat transaksi atau transfer baru"}
+            size="md"
+          >
 
               <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "transaction" | "transfer")}>
                 <TabsList className="grid w-full grid-cols-2">
@@ -429,7 +419,7 @@ export default function TransactionsPage(): JSX.Element {
                 </TabsList>
 
                 <TabsContent value="transaction">
-                  <form onSubmit={handleSubmitTransaction} className="space-y-4">
+                  <ResponsiveDialogForm onSubmit={handleSubmitTransaction}>
                     <div className="space-y-2">
                       <Label htmlFor="jenis">Jenis Transaksi</Label>
                       <Select
@@ -539,16 +529,14 @@ export default function TransactionsPage(): JSX.Element {
                       />
                     </div>
 
-                    <div className="flex gap-2 pt-4">
-                      <Button
-                        type="button"
+                    <ResponsiveDialogActions>
+                      <ResponsiveDialogButton
                         variant="outline"
                         onClick={() => setIsDialogOpen(false)}
-                        className="flex-1"
                       >
                         Batal
-                      </Button>
-                      <Button type="submit" disabled={isSubmitting} className="flex-1">
+                      </ResponsiveDialogButton>
+                      <ResponsiveDialogButton type="submit" disabled={isSubmitting}>
                         {isSubmitting ? (
                           <>
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
@@ -559,13 +547,13 @@ export default function TransactionsPage(): JSX.Element {
                         ) : (
                           "Tambah"
                         )}
-                      </Button>
-                    </div>
-                  </form>
+                      </ResponsiveDialogButton>
+                    </ResponsiveDialogActions>
+                  </ResponsiveDialogForm>
                 </TabsContent>
 
                 <TabsContent value="transfer">
-                  <form onSubmit={handleSubmitTransfer} className="space-y-4">
+                  <ResponsiveDialogForm onSubmit={handleSubmitTransfer}>
                     <div className="space-y-2">
                       <Label htmlFor="akun_asal_id">Akun Asal</Label>
                       <Select
@@ -660,16 +648,14 @@ export default function TransactionsPage(): JSX.Element {
                       />
                     </div>
 
-                    <div className="flex gap-2 pt-4">
-                      <Button
-                        type="button"
+                    <ResponsiveDialogActions>
+                      <ResponsiveDialogButton
                         variant="outline"
                         onClick={() => setIsDialogOpen(false)}
-                        className="flex-1"
                       >
                         Batal
-                      </Button>
-                      <Button type="submit" disabled={isSubmitting} className="flex-1">
+                      </ResponsiveDialogButton>
+                      <ResponsiveDialogButton type="submit" disabled={isSubmitting}>
                         {isSubmitting ? (
                           <>
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
@@ -678,13 +664,17 @@ export default function TransactionsPage(): JSX.Element {
                         ) : (
                           "Transfer"
                         )}
-                      </Button>
-                    </div>
-                  </form>
+                      </ResponsiveDialogButton>
+                    </ResponsiveDialogActions>
+                  </ResponsiveDialogForm>
                 </TabsContent>
               </Tabs>
-            </DialogContent>
-          </Dialog>
+          </ResponsiveDialog>
+          
+          <Button className="w-full sm:w-auto" onClick={() => setIsDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Tambah Transaksi
+          </Button>
         </div>
 
         <Card>
@@ -707,69 +697,18 @@ export default function TransactionsPage(): JSX.Element {
               </div>
             ) : (
               <div className="space-y-3">
-                {transactions.map((transaction) => {
-                  const colors = getTransactionColor(transaction.jenis);
-                  const isTransfer = transaction.jenis === "transfer";
-                  const isIncome = transaction.jenis === "pemasukan";
-                  const isExpense = transaction.jenis === "pengeluaran";
-
-                  return (
-                    <div
-                      key={transaction.id}
-                      className={`flex items-center justify-between p-4 rounded-lg border-l-4 ${colors.border} ${colors.bg} hover:shadow-md transition-shadow`}
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className={`p-2 rounded-lg ${colors.icon}`}>
-                          {getTransactionIcon(transaction.jenis)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-gray-900 truncate">
-                            {isTransfer ? "Transfer" : getCategoryName(transaction.kategori_id)}
-                          </h3>
-                          <p className="text-sm text-gray-600 truncate">
-                            {getAccountName(transaction.akun_id)} •{" "}
-                            {new Date(transaction.tanggal_transaksi).toLocaleDateString("id-ID")}
-                          </p>
-                          {transaction.catatan && (
-                            <p className="text-sm text-gray-500 truncate">
-                              {transaction.catatan}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                        <div className="text-right">
-                          <p className={`font-semibold text-sm sm:text-base ${colors.text}`}>
-                            {isIncome ? "+" : isExpense ? "-" : ""}
-                            {safeFormatCurrency(transaction.nominal)}
-                          </p>
-                          <p className={`text-xs capitalize ${colors.light}`}>
-                            {transaction.jenis}
-                          </p>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(transaction)}
-                            disabled={isTransfer}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteDialog({ open: true, transaction })}
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-100"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {transactions.map((transaction) => (
+                  <TransactionListItem
+                    key={transaction.id}
+                    transaction={transaction}
+                    getAccountName={getAccountName}
+                    getCategoryName={getCategoryName}
+                    onEdit={handleEdit}
+                    onDelete={(transaction) => setDeleteDialog({ open: true, transaction })}
+                    showActions={true}
+                    compact={false}
+                  />
+                ))}
               </div>
             )}
           </CardContent>

@@ -38,6 +38,27 @@ export default function RegisterPage() {
     }));
   };
 
+  const handleTenantNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const nama_tenant = e.target.value;
+    const autoSubdomain = nama_tenant
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/\s+/g, '-')
+      .substring(0, 20);
+    
+    setFormData(prev => ({ ...prev, nama_tenant, sub_domain: autoSubdomain }));
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/[^0-9]/g, '');
+    setFormData(prev => ({ ...prev, no_telepon: value }));
+  };
+
+  const handleSubdomainChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const subdomain = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    setFormData(prev => ({ ...prev, sub_domain: subdomain }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -45,6 +66,15 @@ export default function RegisterPage() {
       toast({
         title: "Password tidak cocok",
         description: "Pastikan password dan konfirmasi password sama",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (formData.no_telepon && (formData.no_telepon.length < 10 || formData.no_telepon.length > 15)) {
+      toast({
+        title: "Nomor telepon tidak valid",
+        description: "Nomor telepon harus 10-15 digit",
         variant: "destructive",
       });
       return;
@@ -116,8 +146,12 @@ export default function RegisterPage() {
               name="no_telepon"
               placeholder="08123456789"
               value={formData.no_telepon}
-              onChange={handleChange}
+              onChange={handlePhoneChange}
+              maxLength={15}
             />
+            {formData.no_telepon && (formData.no_telepon.length < 10 || formData.no_telepon.length > 15) && (
+              <p className="text-xs text-red-500">Nomor telepon harus 10-15 digit</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -127,7 +161,7 @@ export default function RegisterPage() {
               name="nama_tenant"
               placeholder="Nama perusahaan/keluarga"
               value={formData.nama_tenant}
-              onChange={handleChange}
+              onChange={handleTenantNameChange}
               required
             />
           </div>
@@ -140,14 +174,17 @@ export default function RegisterPage() {
                 name="sub_domain"
                 placeholder="mycompany"
                 value={formData.sub_domain}
-                onChange={handleChange}
+                onChange={handleSubdomainChange}
                 className="rounded-r-none"
                 required
               />
-              <span className="inline-flex items-center px-3 rounded-r-md border border-l-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
+              <span className="inline-flex items-center px-3 rounded-r-md border border-l-0 border-input bg-muted text-muted-foreground text-sm">
                 .finora.id
               </span>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Otomatis dibuat dari nama organisasi. Hanya huruf kecil, angka, dan tanda hubung.
+            </p>
           </div>
 
           <div className="space-y-2">

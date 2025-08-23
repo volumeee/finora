@@ -16,14 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DialogTrigger } from "@/components/ui/dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogForm,
+  ResponsiveDialogActions,
+  ResponsiveDialogButton,
+} from "@/components/ui/ResponsiveDialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { Plus, Edit, Trash2, Utensils, Car, ShoppingCart, Clapperboard, Receipt, Banknote, TrendingUp, HelpCircle, Home, Gamepad2, Shirt, Plane, Smartphone, Zap, DollarSign, Gift, Briefcase, Trophy, Target, Diamond, Wrench, Palette, Book, Coffee, Heart, Music, Camera, MapPin, ShoppingBag, CreditCard, Fuel, GraduationCap, Stethoscope, Dumbbell, Scissors, Hammer, PaintBucket } from "lucide-react";
@@ -407,27 +406,14 @@ export default function CategoriesPage(): JSX.Element {
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">Kategori</h1>
             <p className="text-gray-600 text-sm sm:text-base truncate">Kelola kategori transaksi Anda</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-            <DialogTrigger asChild>
-              <Button className="w-full sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" />
-                <span className="hidden sm:inline">Tambah Kategori</span>
-                <span className="sm:hidden">Tambah</span>
-              </Button>
-            </DialogTrigger>
-          <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {editingCategory ? "Edit Kategori" : "Tambah Kategori Baru"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingCategory
-                  ? "Perbarui informasi kategori"
-                  : "Buat kategori untuk mengorganisir transaksi"}
-              </DialogDescription>
-            </DialogHeader>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
+          <ResponsiveDialog
+            open={isDialogOpen}
+            onOpenChange={handleDialogClose}
+            title={editingCategory ? "Edit Kategori" : "Tambah Kategori Baru"}
+            description={editingCategory ? "Perbarui informasi kategori" : "Buat kategori untuk mengorganisir transaksi"}
+            size="md"
+          >
+            <ResponsiveDialogForm onSubmit={handleSubmit}>
               <div className="space-y-2">
                 <Label htmlFor="nama_kategori">Nama Kategori</Label>
                 <Input
@@ -516,19 +502,16 @@ export default function CategoriesPage(): JSX.Element {
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-4">
-                <Button
-                  type="button"
+              <ResponsiveDialogActions>
+                <ResponsiveDialogButton
                   variant="outline"
                   onClick={() => setIsDialogOpen(false)}
-                  className="flex-1"
                 >
                   Batal
-                </Button>
-                <Button
+                </ResponsiveDialogButton>
+                <ResponsiveDialogButton
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1"
                 >
                   {isSubmitting ? (
                     <>
@@ -540,11 +523,16 @@ export default function CategoriesPage(): JSX.Element {
                   ) : (
                     "Tambah"
                   )}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+                </ResponsiveDialogButton>
+              </ResponsiveDialogActions>
+            </ResponsiveDialogForm>
+          </ResponsiveDialog>
+          
+          <Button className="w-full sm:w-auto" onClick={() => setIsDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">Tambah Kategori</span>
+            <span className="sm:hidden">Tambah</span>
+          </Button>
       </div>
 
         <Card className="overflow-hidden">

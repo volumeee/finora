@@ -5,7 +5,12 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  ResponsiveDialog,
+  ResponsiveDialogForm,
+  ResponsiveDialogActions,
+  ResponsiveDialogButton,
+} from '@/components/ui/ResponsiveDialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, Mail, MoreHorizontal, Users } from 'lucide-react';
 import {
@@ -428,59 +433,53 @@ export default function MemberManagement() {
       )}
 
       {/* Role Update Dialog */}
-      <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Ubah Peran Anggota</DialogTitle>
-            <DialogDescription>
-              Ubah peran untuk {selectedMember?.nama_lengkap}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="new_role">Peran Baru</Label>
-              <Select value={newRole} onValueChange={setNewRole}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih peran baru" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.slice(1).map((role) => ( // Exclude owner role
-                    <SelectItem key={role.id} value={role.id.toString()}>
-                      {role.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex gap-2 pt-4">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => setIsRoleDialogOpen(false)}
-                className="flex-1"
-              >
-                Batal
-              </Button>
-              <Button 
-                onClick={handleUpdateRole} 
-                disabled={isUpdatingRole || !newRole}
-                className="flex-1"
-              >
-                {isUpdatingRole ? (
-                  <>
-                    <LoadingSpinner size="sm" className="mr-2" />
-                    Memperbarui...
-                  </>
-                ) : (
-                  'Perbarui Peran'
-                )}
-              </Button>
-            </div>
+      <ResponsiveDialog
+        open={isRoleDialogOpen}
+        onOpenChange={setIsRoleDialogOpen}
+        title="Ubah Peran Anggota"
+        description={`Ubah peran untuk ${selectedMember?.nama_lengkap}`}
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="new_role">Peran Baru</Label>
+            <Select value={newRole} onValueChange={setNewRole}>
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih peran baru" />
+              </SelectTrigger>
+              <SelectContent>
+                {roles.slice(1).map((role) => ( // Exclude owner role
+                  <SelectItem key={role.id} value={role.id.toString()}>
+                    {role.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </DialogContent>
-      </Dialog>
+          
+          <ResponsiveDialogActions>
+            <ResponsiveDialogButton
+              variant="outline"
+              onClick={() => setIsRoleDialogOpen(false)}
+            >
+              Batal
+            </ResponsiveDialogButton>
+            <ResponsiveDialogButton
+              onClick={handleUpdateRole}
+              disabled={isUpdatingRole || !newRole}
+            >
+              {isUpdatingRole ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Memperbarui...
+                </>
+              ) : (
+                'Perbarui Peran'
+              )}
+            </ResponsiveDialogButton>
+          </ResponsiveDialogActions>
+        </div>
+      </ResponsiveDialog>
       
       <ConfirmDialog
         open={deleteDialog.open}

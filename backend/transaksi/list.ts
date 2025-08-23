@@ -79,11 +79,9 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
       params.push(tanggal_sampai);
     }
 
-    query += ` ORDER BY tanggal_transaksi DESC, dibuat_pada DESC LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
-    params.push(limit, offset);
-
-    // hasil query sekarang bertipe string, bukan bigint
-    const rows = await transaksiDB.rawQueryAll<{
+    // Get all transactions first, then handle pagination after including transfer pairs
+    const tempQuery = query + ` ORDER BY tanggal_transaksi DESC, dibuat_pada DESC`;
+    const allRows = await transaksiDB.rawQueryAll<{
       id: string;
       tenant_id: string;
       akun_id: string;
@@ -97,13 +95,137 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
       transaksi_berulang_id?: string;
       dibuat_pada: string;
       diubah_pada: string;
-    }>(query, ...params);
+    }>(tempQuery, ...params);
+    
+    // Apply pagination after getting transfer pairs
+    const rows = allRows.slice(offset, offset + limit);
 
-    // konversi ke tipe yang diinginkan
-    const transaksi: Transaksi[] = rows.map((r) => ({
-      ...r,
-      nominal: parseInt(r.nominal, 10) / 100,
-    }));
+    // Get transfer relationships
+    const transferMap = new Map();
+    const transferIds = rows.filter(r => r.jenis === 'transfer').map(r => r.id);
+    
+    if (transferIds.length > 0) {
+      const transfers = await transaksiDB.queryAll<{
+        id: string;
+        transaksi_keluar_id: string;
+        transaksi_masuk_id: string;
+      }>`
+        SELECT id, transaksi_keluar_id, transaksi_masuk_id
+        FROM transfer_antar_akun
+        WHERE transaksi_keluar_id = ANY(${transferIds}) OR transaksi_masuk_id = ANY(${transferIds})
+      `;
+      
+      transfers.forEach(t => {
+        transferMap.set(t.transaksi_keluar_id, { transferId: t.id, type: 'keluar', pairedId: t.transaksi_masuk_id });
+        transferMap.set(t.transaksi_masuk_id, { transferId: t.id, type: 'masuk', pairedId: t.transaksi_keluar_id });
+      });
+    }
+
+    // Add missing paired transactions
+    let filteredRows = rows;
+    
+    if (transferIds.length > 0) {
+      const pairedIds = Array.from(transferMap.values()).map(info => info.pairedId).filter(Boolean);
+      const existingIds = new Set(rows.map(r => r.id));
+      const missingIds = pairedIds.filter(id => !existingIds.has(id));
+      
+      if (missingIds.length > 0) {
+        const missingTransactions = await transaksiDB.rawQueryAll<{
+          id: string;
+          tenant_id: string;
+          akun_id: string;
+          kategori_id: string;
+          jenis: string;
+          nominal: string;
+          mata_uang: string;
+          tanggal_transaksi: string;
+          catatan?: string;
+          pengguna_id: string;
+          transaksi_berulang_id?: string;
+          dibuat_pada: string;
+          diubah_pada: string;
+        }>(
+          `SELECT
+            id, tenant_id, akun_id, kategori_id, jenis,
+            nominal::text AS nominal, mata_uang,
+            tanggal_transaksi::text AS tanggal_transaksi,
+            catatan, pengguna_id, transaksi_berulang_id,
+            dibuat_pada, diubah_pada
+          FROM transaksi
+          WHERE id = ANY($1) AND tenant_id = $2 AND dihapus_pada IS NULL`,
+          missingIds, tenant_id
+        );
+        
+        filteredRows = [...rows, ...missingTransactions];
+        
+        // Update transfer map for missing transactions
+        missingTransactions.forEach(t => {
+          const existingTransfer = Array.from(transferMap.entries())
+            .find(([_, info]) => info.pairedId === t.id);
+          if (existingTransfer) {
+            const [originalId, info] = existingTransfer;
+            transferMap.set(t.id, {
+              transferId: info.transferId,
+              type: info.type === 'keluar' ? 'masuk' : 'keluar',
+              pairedId: originalId
+            });
+          }
+        });
+      }
+    }
+
+    // Get paired account info for all transfers
+    const pairedAccounts = new Map();
+    if (transferIds.length > 0) {
+      // Get all transfer relationships to properly map accounts
+      const allTransferRelations = await transaksiDB.queryAll<{
+        transfer_id: string;
+        keluar_id: string;
+        masuk_id: string;
+        keluar_akun: string;
+        masuk_akun: string;
+      }>`
+        SELECT 
+          ta.id as transfer_id,
+          ta.transaksi_keluar_id as keluar_id,
+          ta.transaksi_masuk_id as masuk_id,
+          t1.akun_id as keluar_akun,
+          t2.akun_id as masuk_akun
+        FROM transfer_antar_akun ta
+        LEFT JOIN transaksi t1 ON ta.transaksi_keluar_id = t1.id
+        LEFT JOIN transaksi t2 ON ta.transaksi_masuk_id = t2.id
+        WHERE (ta.transaksi_keluar_id = ANY(${transferIds}) OR ta.transaksi_masuk_id = ANY(${transferIds}))
+        AND t1.dihapus_pada IS NULL AND t2.dihapus_pada IS NULL
+      `;
+      
+      allTransferRelations.forEach(rel => {
+        pairedAccounts.set(rel.keluar_id, rel.masuk_akun);
+        pairedAccounts.set(rel.masuk_id, rel.keluar_akun);
+      });
+    }
+
+    // Convert and add transfer metadata
+    const transaksi: Transaksi[] = filteredRows.map((r) => {
+      const transaction = {
+        ...r,
+        nominal: parseInt(r.nominal, 10) / 100,
+      };
+      
+      if (r.jenis === 'transfer') {
+        const transferInfo = transferMap.get(r.id);
+        if (transferInfo) {
+          const pairedAccountId = pairedAccounts.get(r.id);
+          (transaction as any).transfer_info = {
+            paired_transaction_id: transferInfo.pairedId,
+            transfer_id: transferInfo.transferId,
+            type: transferInfo.type,
+            paired_account_id: pairedAccounts.get(r.id)
+          };
+        }
+      }
+      
+      return transaction;
+    });
 
     // split kategori
     for (const t of transaksi) {

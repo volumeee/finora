@@ -22,6 +22,13 @@ export interface DashboardStatsResponse {
     nominal: number;
     catatan?: string;
     tanggal_transaksi: string;
+    akun_id: string;
+    transfer_info?: {
+      paired_transaction_id: string;
+      transfer_id: string;
+      type: string;
+      paired_account_id: string;
+    };
   }>;
 }
 
@@ -77,34 +84,71 @@ export const getStats = api<DashboardStatsRequest, DashboardStatsResponse>(
       WHERE tenant_id = ${req.tenant_id} AND dihapus_pada IS NULL
     `;
 
-    // Get recent transactions
-    const rawTransactions = await transaksiDB.queryAll<{
+    // Get recent transactions with transfer info in one query
+    const recentTransactions = await transaksiDB.rawQueryAll<{
       id: string;
       jenis: string;
       nominal: string;
       catatan?: string;
       tanggal_transaksi: string;
-    }>`
-      SELECT 
-        id,
-        jenis,
-        nominal::text,
-        catatan,
-        tanggal_transaksi::text
-      FROM transaksi
-      WHERE tenant_id = ${req.tenant_id} 
-        AND dihapus_pada IS NULL
-        AND tanggal_transaksi >= ${firstDayOfMonth.toISOString().split('T')[0]}
-        AND tanggal_transaksi <= ${lastDayOfMonth.toISOString().split('T')[0]}
-      ORDER BY tanggal_transaksi DESC
-      LIMIT 5
-    `;
-    
-    // Convert from cents
-    const recentTransactions = rawTransactions.map(t => ({
-      ...t,
-      nominal: parseInt(t.nominal) / 100
-    }));
+      akun_id: string;
+      transfer_id?: string;
+      paired_transaction_id?: string;
+      transfer_type?: string;
+      paired_account_id?: string;
+    }>(
+      `SELECT 
+        t.id,
+        t.jenis,
+        t.nominal::text AS nominal,
+        t.catatan,
+        t.tanggal_transaksi::text AS tanggal_transaksi,
+        t.akun_id,
+        ta.id as transfer_id,
+        CASE 
+          WHEN ta.transaksi_keluar_id = t.id THEN ta.transaksi_masuk_id
+          WHEN ta.transaksi_masuk_id = t.id THEN ta.transaksi_keluar_id
+        END as paired_transaction_id,
+        CASE 
+          WHEN ta.transaksi_keluar_id = t.id THEN 'keluar'
+          WHEN ta.transaksi_masuk_id = t.id THEN 'masuk'
+        END as transfer_type,
+        CASE 
+          WHEN ta.transaksi_keluar_id = t.id THEN t2.akun_id
+          WHEN ta.transaksi_masuk_id = t.id THEN t1.akun_id
+        END as paired_account_id
+      FROM transaksi t
+      LEFT JOIN transfer_antar_akun ta ON (ta.transaksi_keluar_id = t.id OR ta.transaksi_masuk_id = t.id)
+      LEFT JOIN transaksi t1 ON ta.transaksi_keluar_id = t1.id
+      LEFT JOIN transaksi t2 ON ta.transaksi_masuk_id = t2.id
+      WHERE t.tenant_id = $1 AND t.dihapus_pada IS NULL
+      ORDER BY t.tanggal_transaksi DESC, t.dibuat_pada DESC
+      LIMIT 5`,
+      req.tenant_id
+    );
+
+    // Format the response
+    const formattedTransactions = recentTransactions.map(t => {
+      const transaction: any = {
+        id: t.id,
+        jenis: t.jenis,
+        nominal: parseInt(t.nominal) / 100,
+        catatan: t.catatan,
+        tanggal_transaksi: t.tanggal_transaksi,
+        akun_id: t.akun_id
+      };
+
+      if (t.jenis === 'transfer' && t.transfer_id) {
+        transaction.transfer_info = {
+          paired_transaction_id: t.paired_transaction_id,
+          transfer_id: t.transfer_id,
+          type: t.transfer_type,
+          paired_account_id: t.paired_account_id
+        };
+      }
+
+      return transaction;
+    });
 
     return {
       total_balance: parseInt(balanceResult?.total_balance || '0') / 100,
@@ -113,7 +157,7 @@ export const getStats = api<DashboardStatsRequest, DashboardStatsResponse>(
       accounts_count: accountsResult?.accounts_count || 0,
       goals_count: goalsResult?.goals_count || 0,
       completed_goals: goalsResult?.completed_goals || 0,
-      recent_transactions: recentTransactions
+      recent_transactions: formattedTransactions
     };
   }
 );

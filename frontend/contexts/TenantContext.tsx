@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 
 interface TenantContextType {
@@ -12,8 +12,22 @@ const TenantContext = createContext<TenantContextType | undefined>(undefined);
 export function TenantProvider({ children }: { children: ReactNode }) {
   const { tenants } = useAuth();
   const [currentTenant, setCurrentTenantState] = useState<string | null>(
-    localStorage.getItem('current_tenant') || (tenants.length > 0 ? tenants[0].id : null)
+    localStorage.getItem('current_tenant')
   );
+
+  // Auto-select first tenant when tenants change and no tenant is selected
+  useEffect(() => {
+    const storedTenant = localStorage.getItem('current_tenant');
+    if (tenants.length > 0) {
+      if (!storedTenant || !tenants.find(t => t.id === storedTenant)) {
+        // Auto-select first tenant if none selected or stored tenant not found
+        setCurrentTenant(tenants[0].id);
+      } else if (storedTenant && !currentTenant) {
+        // Set current tenant from storage if not already set
+        setCurrentTenantState(storedTenant);
+      }
+    }
+  }, [tenants, currentTenant]);
 
   const setCurrentTenant = (tenantId: string) => {
     setCurrentTenantState(tenantId);
