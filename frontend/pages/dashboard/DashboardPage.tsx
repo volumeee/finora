@@ -44,12 +44,15 @@ interface Transaction {
   tanggal_transaksi: string;
   catatan?: string;
   kategori_nama?: string;
+  nama_kategori?: string;
+  nama_akun?: string;
   akun_id: string;
   transfer_info?: {
     type: "masuk" | "keluar";
     paired_account_id: string;
     paired_transaction_id: string;
     transfer_id: string;
+    paired_account_name?: string;
   };
 }
 
@@ -355,16 +358,32 @@ export default function DashboardPage(): JSX.Element {
                 </div>
               ) : (
                 <div className="space-y-2 sm:space-y-3 max-h-80 overflow-y-auto">
-                  {recentTransactions.map((transaction) => (
-                    <TransactionListItem
-                      key={transaction.id}
-                      transaction={transaction}
-                      getAccountName={(accountId) => "Akun"}
-                      getCategoryName={(categoryId) => transaction.catatan || transaction.kategori_nama || "Transaksi"}
-                      showActions={false}
-                      compact={true}
-                    />
-                  ))}
+                  {recentTransactions
+                    .filter((transaction, index, arr) => {
+                      if (transaction.jenis === 'transfer') {
+                        const transferId = transaction.transfer_info?.transfer_id;
+                        if (transferId) {
+                          // For regular transfers, show only one per transfer_id
+                          return arr.findIndex(t => 
+                            t.jenis === 'transfer' && 
+                            t.transfer_info?.transfer_id === transferId
+                          ) === index;
+                        }
+                        // For goal transfers (no transfer_id), show all
+                        return true;
+                      }
+                      return true;
+                    })
+                    .map((transaction) => (
+                      <TransactionListItem
+                        key={transaction.id}
+                        transaction={transaction}
+                        getAccountName={(accountId) => transaction.nama_akun || "Akun"}
+                        getCategoryName={(categoryId) => transaction.nama_kategori || transaction.catatan || "Transaksi"}
+                        showActions={false}
+                        compact={true}
+                      />
+                    ))}
                 </div>
               )}
             </CardContent>

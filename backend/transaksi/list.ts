@@ -1,6 +1,9 @@
 import { api } from "encore.dev/api";
 import { Query } from "encore.dev/api";
 import { transaksiDB } from "./db";
+import { akunDB } from "../akun/db";
+import { kategoriDB } from "../kategori/db";
+import { tujuanDB } from "../tujuan/db";
 import { Transaksi, SplitKategori } from "./create";
 
 interface ListTransaksiParams {
@@ -14,8 +17,21 @@ interface ListTransaksiParams {
   offset?: Query<number>;
 }
 
+interface TransaksiWithDetails extends Transaksi {
+  nama_akun?: string;
+  nama_kategori?: string;
+  nama_tujuan?: string;
+  transfer_info?: {
+    paired_transaction_id: string;
+    transfer_id: string;
+    type: "masuk" | "keluar";
+    paired_account_id: string;
+    paired_account_name?: string;
+  };
+}
+
 interface ListTransaksiResponse {
-  transaksi: Transaksi[];
+  transaksi: TransaksiWithDetails[];
   total: number;
 }
 
@@ -39,7 +55,7 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
         akun_id,
         kategori_id,
         jenis,
-        nominal::text      AS nominal,
+        nominal::text AS nominal,
         mata_uang,
         tanggal_transaksi::text AS tanggal_transaksi,
         catatan,
@@ -95,6 +111,7 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
       transaksi_berulang_id?: string;
       dibuat_pada: string;
       diubah_pada: string;
+
     }>(tempQuery, ...params);
     
     // Apply pagination after getting transfer pairs
@@ -176,6 +193,7 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
 
     // Get paired account info for all transfers
     const pairedAccounts = new Map();
+
     if (transferIds.length > 0) {
       // Get all transfer relationships to properly map accounts
       const allTransferRelations = await transaksiDB.queryAll<{
@@ -204,22 +222,92 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
       });
     }
 
+    // Get account and category names
+    const accountIds = [...new Set(filteredRows.map(r => r.akun_id))];
+    const categoryIds = [...new Set(filteredRows.map(r => r.kategori_id).filter(Boolean))];
+    const pairedAccountIds = [...new Set(Array.from(pairedAccounts.values()))];
+    const allAccountIds = [...new Set([...accountIds, ...pairedAccountIds])];
+
+    // Get account names
+    const accountNames = new Map();
+    if (allAccountIds.length > 0) {
+      const accounts = await akunDB.queryAll<{id: string, nama_akun: string}>`
+        SELECT id, nama_akun FROM akun WHERE id = ANY(${allAccountIds}) AND dihapus_pada IS NULL
+      `;
+      accounts.forEach(a => accountNames.set(a.id, a.nama_akun));
+      
+      // Also check for goals
+      const goals = await tujuanDB.queryAll<{id: string, nama_tujuan: string}>`
+        SELECT id, nama_tujuan FROM tujuan_tabungan WHERE id = ANY(${allAccountIds}) AND dihapus_pada IS NULL
+      `;
+      goals.forEach(g => accountNames.set(g.id, `🎯 ${g.nama_tujuan}`));
+    }
+
+    // Get category names
+    const categoryNames = new Map();
+    if (categoryIds.length > 0) {
+      const categories = await kategoriDB.queryAll<{id: string, nama_kategori: string}>`
+        SELECT id, nama_kategori FROM kategori WHERE id = ANY(${categoryIds}) AND dihapus_pada IS NULL
+      `;
+      categories.forEach(c => categoryNames.set(c.id, c.nama_kategori));
+    }
+
+    // Check for goal transfers (kontribusi_tujuan)
+    const goalTransfers = new Map();
+    if (transferIds.length > 0) {
+      const contributions = await tujuanDB.queryAll<{
+        transaksi_id: string;
+        tujuan_tabungan_id: string;
+      }>`
+        SELECT transaksi_id, tujuan_tabungan_id 
+        FROM kontribusi_tujuan 
+        WHERE transaksi_id = ANY(${transferIds})
+      `;
+      
+      contributions.forEach(c => {
+        goalTransfers.set(c.transaksi_id, c.tujuan_tabungan_id);
+      });
+    }
+
     // Convert and add transfer metadata
     const transaksi: Transaksi[] = filteredRows.map((r) => {
       const transaction = {
         ...r,
         nominal: parseInt(r.nominal, 10) / 100,
+        nama_akun: accountNames.get(r.akun_id),
+        nama_kategori: categoryNames.get(r.kategori_id),
       };
       
       if (r.jenis === 'transfer') {
         const transferInfo = transferMap.get(r.id);
+        const goalId = goalTransfers.get(r.id);
+        
         if (transferInfo) {
-          const pairedAccountId = pairedAccounts.get(r.id);
+          // Regular transfer between accounts
           (transaction as any).transfer_info = {
             paired_transaction_id: transferInfo.pairedId,
             transfer_id: transferInfo.transferId,
             type: transferInfo.type,
-            paired_account_id: pairedAccounts.get(r.id)
+            paired_account_id: pairedAccounts.get(r.id),
+            paired_account_name: accountNames.get(pairedAccounts.get(r.id))
+          };
+        } else if (goalId) {
+          // Transfer to goal
+          (transaction as any).transfer_info = {
+            paired_transaction_id: null,
+            transfer_id: null,
+            type: 'keluar',
+            paired_account_id: goalId,
+            paired_account_name: accountNames.get(goalId)
+          };
+        } else {
+          // Unknown transfer
+          (transaction as any).transfer_info = {
+            paired_transaction_id: null,
+            transfer_id: null,
+            type: 'keluar',
+            paired_account_id: null,
+            paired_account_name: null
           };
         }
       }

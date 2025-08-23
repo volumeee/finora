@@ -30,46 +30,56 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2 sm:space-x-4">
+    <header className="sticky top-0 z-50 bg-white shadow-sm border-b border-gray-200">
+      <div className="flex items-center justify-between h-14 px-4 lg:px-6">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <MobileNav />
           <div className="lg:hidden">
             <h1 className="text-lg font-bold text-gray-900">Finora</h1>
           </div>
-          <TenantSwitcher />
+          <div className="hidden sm:block min-w-0">
+            <TenantSwitcher />
+          </div>
         </div>
 
-        <div className="flex items-center space-x-2 sm:space-x-4">
-          <Button variant="ghost" size="sm" className="hidden sm:flex">
-            <Bell className="h-5 w-5" />
+        <div className="flex items-center gap-2">
+          <div className="sm:hidden">
+            <TenantSwitcher />
+          </div>
+          
+          <Button variant="ghost" size="sm" className="hidden md:flex h-9 w-9 p-0">
+            <Bell className="h-4 w-4" />
           </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center space-x-1 sm:space-x-2">
-                <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
+              <Button variant="ghost" className="flex items-center gap-2 h-9 px-2">
+                <Avatar className="h-7 w-7">
                   <AvatarImage src={user?.avatar_url} />
-                  <AvatarFallback className="text-xs">
+                  <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
                     {user?.nama_lengkap?.split(' ').map(n => n[0]).join('').toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <span className="text-sm font-medium hidden sm:block truncate max-w-32">{user?.nama_lengkap}</span>
-                <ChevronDown className="h-4 w-4" />
+                <span className="text-sm font-medium hidden md:block truncate max-w-24">
+                  {user?.nama_lengkap}
+                </span>
+                <ChevronDown className="h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>
-                <div>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="pb-2">
+                <div className="space-y-1">
                   <p className="font-medium truncate">{user?.nama_lengkap}</p>
-                  <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                   {currentTenant && (
-                    <p className="text-xs text-blue-600 truncate">{currentTenant.nama}</p>
+                    <p className="text-xs text-blue-600 truncate font-medium">
+                      {currentTenant.nama}
+                    </p>
                   )}
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout}>
+              <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600">
                 <LogOut className="mr-2 h-4 w-4" />
                 Keluar
               </DropdownMenuItem>

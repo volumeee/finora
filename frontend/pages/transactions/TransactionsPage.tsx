@@ -54,11 +54,14 @@ interface Transaction {
   pengguna_id: string;
   dibuat_pada: Date;
   diubah_pada: Date;
+  nama_akun?: string;
+  nama_kategori?: string;
   transfer_info?: {
     type: "masuk" | "keluar";
     paired_account_id: string;
     paired_transaction_id: string;
     transfer_id: string;
+    paired_account_name?: string;
   };
 }
 
@@ -697,18 +700,29 @@ export default function TransactionsPage(): JSX.Element {
               </div>
             ) : (
               <div className="space-y-3">
-                {transactions.map((transaction) => (
-                  <TransactionListItem
-                    key={transaction.id}
-                    transaction={transaction}
-                    getAccountName={getAccountName}
-                    getCategoryName={getCategoryName}
-                    onEdit={handleEdit}
-                    onDelete={(transaction) => setDeleteDialog({ open: true, transaction })}
-                    showActions={true}
-                    compact={false}
-                  />
-                ))}
+                {transactions
+                  .filter((transaction, index, arr) => {
+                    if (transaction.jenis === 'transfer' && transaction.transfer_info?.transfer_id) {
+                      const transferId = transaction.transfer_info.transfer_id;
+                      return arr.findIndex(t => 
+                        t.jenis === 'transfer' && 
+                        t.transfer_info?.transfer_id === transferId
+                      ) === index;
+                    }
+                    return true;
+                  })
+                  .map((transaction) => (
+                    <TransactionListItem
+                      key={transaction.id}
+                      transaction={transaction}
+                      getAccountName={getAccountName}
+                      getCategoryName={getCategoryName}
+                      onEdit={handleEdit}
+                      onDelete={(transaction) => setDeleteDialog({ open: true, transaction })}
+                      showActions={true}
+                      compact={false}
+                    />
+                  ))}
               </div>
             )}
           </CardContent>

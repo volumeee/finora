@@ -12,11 +12,14 @@ interface Transaction {
   mata_uang: string;
   tanggal_transaksi: string;
   catatan?: string;
+  nama_akun?: string;
+  nama_kategori?: string;
   transfer_info?: {
     type: "masuk" | "keluar";
     paired_account_id: string;
     paired_transaction_id: string;
     transfer_id: string;
+    paired_account_name?: string;
   };
 }
 
@@ -67,10 +70,12 @@ export function TransactionListItem({
   const transferInfo = transaction.transfer_info;
   const transferType = transferInfo?.type;
 
-  // For transfers, render single entry based on type
+  // For transfers, render based on type
   if (isTransfer && transferInfo) {
     const isOut = transferType === 'keluar';
-    const pairedAccountName = getAccountName(transferInfo.paired_account_id);
+    const currentAccountName = transaction.nama_akun || getAccountName(transaction.akun_id);
+    const pairedAccountName = transferInfo.paired_account_name || 
+      (transferInfo.paired_account_id ? getAccountName(transferInfo.paired_account_id) : 'Tujuan Tabungan');
     
     return (
       <div className={`flex items-center ${compact ? 'gap-2 sm:gap-3 p-2 sm:p-3' : 'justify-between p-4'} rounded-lg border-l-4 ${
@@ -90,7 +95,10 @@ export function TransactionListItem({
               {isOut ? 'Transfer Keluar' : 'Transfer Masuk'}
             </h3>
             <p className={`text-gray-600 truncate ${compact ? 'text-xs sm:text-sm' : 'text-sm'}`}>
-              {isOut ? `Dari ${getAccountName(transaction.akun_id)} ke ${pairedAccountName}` : `Ke ${getAccountName(transaction.akun_id)} dari ${pairedAccountName}`} • {new Date(transaction.tanggal_transaksi).toLocaleDateString("id-ID")}
+              {transferInfo.paired_account_id ? 
+                `${currentAccountName} → ${pairedAccountName}` :
+                `${currentAccountName} → Tujuan Tabungan`
+              } • {new Date(transaction.tanggal_transaksi).toLocaleDateString("id-ID")}
             </p>
             {transaction.catatan && (
               <p className={`text-gray-500 truncate ${compact ? 'text-xs sm:text-sm' : 'text-sm'}`}>
@@ -149,10 +157,10 @@ export function TransactionListItem({
         </div>
         <div className="flex-1 min-w-0">
           <h3 className={`font-medium text-gray-900 truncate ${compact ? 'text-sm sm:text-base' : ''}`}>
-            {getCategoryName(transaction.kategori_id)}
+            {transaction.nama_kategori || getCategoryName(transaction.kategori_id)}
           </h3>
           <p className={`text-gray-600 truncate ${compact ? 'text-xs sm:text-sm' : 'text-sm'}`}>
-            {isIncome ? 'Masuk ke' : isExpense ? 'Keluar dari' : ''} {getAccountName(transaction.akun_id)} • {new Date(transaction.tanggal_transaksi).toLocaleDateString("id-ID")}
+            {isIncome ? 'Masuk ke' : isExpense ? 'Keluar dari' : ''} {transaction.nama_akun || getAccountName(transaction.akun_id)} • {new Date(transaction.tanggal_transaksi).toLocaleDateString("id-ID")}
           </p>
           {transaction.catatan && (
             <p className={`text-gray-500 truncate ${compact ? 'text-xs sm:text-sm' : 'text-sm'}`}>

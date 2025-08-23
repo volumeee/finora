@@ -1,9 +1,8 @@
 import { api } from "encore.dev/api";
-import { SQLDatabase } from "encore.dev/storage/sqldb";
-
-const akunDB = SQLDatabase.named("akun");
-const transaksiDB = SQLDatabase.named("transaksi");
-const tujuanDB = SQLDatabase.named("tujuan");
+import { akunDB } from "../akun/db";
+import { transaksiDB } from "../transaksi/db";
+import { tujuanDB } from "../tujuan/db";
+import { kategoriDB } from "../kategori/db";
 
 export interface DashboardStatsRequest {
   tenant_id: string;
@@ -23,11 +22,15 @@ export interface DashboardStatsResponse {
     catatan?: string;
     tanggal_transaksi: string;
     akun_id: string;
+    nama_akun?: string;
+    nama_kategori?: string;
+    kategori_nama?: string;
     transfer_info?: {
       paired_transaction_id: string;
       transfer_id: string;
       type: string;
       paired_account_id: string;
+      paired_account_name?: string;
     };
   }>;
 }
@@ -84,7 +87,7 @@ export const getStats = api<DashboardStatsRequest, DashboardStatsResponse>(
       WHERE tenant_id = ${req.tenant_id} AND dihapus_pada IS NULL
     `;
 
-    // Get recent transactions with transfer info in one query
+    // Get recent transactions
     const recentTransactions = await transaksiDB.rawQueryAll<{
       id: string;
       jenis: string;
@@ -92,59 +95,123 @@ export const getStats = api<DashboardStatsRequest, DashboardStatsResponse>(
       catatan?: string;
       tanggal_transaksi: string;
       akun_id: string;
-      transfer_id?: string;
-      paired_transaction_id?: string;
-      transfer_type?: string;
-      paired_account_id?: string;
+      kategori_id?: string;
     }>(
-      `SELECT 
-        t.id,
-        t.jenis,
-        t.nominal::text AS nominal,
-        t.catatan,
-        t.tanggal_transaksi::text AS tanggal_transaksi,
-        t.akun_id,
-        ta.id as transfer_id,
-        CASE 
-          WHEN ta.transaksi_keluar_id = t.id THEN ta.transaksi_masuk_id
-          WHEN ta.transaksi_masuk_id = t.id THEN ta.transaksi_keluar_id
-        END as paired_transaction_id,
-        CASE 
-          WHEN ta.transaksi_keluar_id = t.id THEN 'keluar'
-          WHEN ta.transaksi_masuk_id = t.id THEN 'masuk'
-        END as transfer_type,
-        CASE 
-          WHEN ta.transaksi_keluar_id = t.id THEN t2.akun_id
-          WHEN ta.transaksi_masuk_id = t.id THEN t1.akun_id
-        END as paired_account_id
-      FROM transaksi t
-      LEFT JOIN transfer_antar_akun ta ON (ta.transaksi_keluar_id = t.id OR ta.transaksi_masuk_id = t.id)
-      LEFT JOIN transaksi t1 ON ta.transaksi_keluar_id = t1.id
-      LEFT JOIN transaksi t2 ON ta.transaksi_masuk_id = t2.id
-      WHERE t.tenant_id = $1 AND t.dihapus_pada IS NULL
-      ORDER BY t.tanggal_transaksi DESC, t.dibuat_pada DESC
-      LIMIT 5`,
+      `SELECT id, jenis, nominal::text AS nominal, catatan, tanggal_transaksi::text AS tanggal_transaksi, akun_id, kategori_id
+       FROM transaksi
+       WHERE tenant_id = $1 AND dihapus_pada IS NULL
+       ORDER BY tanggal_transaksi DESC, dibuat_pada DESC
+       LIMIT 10`,
       req.tenant_id
     );
 
+    // Get transfer info
+    const transferIds = recentTransactions.filter(t => t.jenis === 'transfer').map(t => t.id);
+    const transferMap = new Map();
+    const pairedAccounts = new Map();
+    
+    if (transferIds.length > 0) {
+      const transfers = await transaksiDB.queryAll<{
+        id: string;
+        transaksi_keluar_id: string;
+        transaksi_masuk_id: string;
+      }>`
+        SELECT id, transaksi_keluar_id, transaksi_masuk_id
+        FROM transfer_antar_akun
+        WHERE transaksi_keluar_id = ANY(${transferIds}) OR transaksi_masuk_id = ANY(${transferIds})
+      `;
+      
+      transfers.forEach(t => {
+        transferMap.set(t.transaksi_keluar_id, { transferId: t.id, type: 'keluar', pairedId: t.transaksi_masuk_id });
+        transferMap.set(t.transaksi_masuk_id, { transferId: t.id, type: 'masuk', pairedId: t.transaksi_keluar_id });
+      });
+
+      const allTransferRelations = await transaksiDB.queryAll<{
+        transfer_id: string;
+        keluar_id: string;
+        masuk_id: string;
+        keluar_akun: string;
+        masuk_akun: string;
+      }>`
+        SELECT 
+          ta.id as transfer_id,
+          ta.transaksi_keluar_id as keluar_id,
+          ta.transaksi_masuk_id as masuk_id,
+          t1.akun_id as keluar_akun,
+          t2.akun_id as masuk_akun
+        FROM transfer_antar_akun ta
+        LEFT JOIN transaksi t1 ON ta.transaksi_keluar_id = t1.id
+        LEFT JOIN transaksi t2 ON ta.transaksi_masuk_id = t2.id
+        WHERE (ta.transaksi_keluar_id = ANY(${transferIds}) OR ta.transaksi_masuk_id = ANY(${transferIds}))
+        AND t1.dihapus_pada IS NULL AND t2.dihapus_pada IS NULL
+      `;
+      
+      allTransferRelations.forEach(rel => {
+        pairedAccounts.set(rel.keluar_id, rel.masuk_akun);
+        pairedAccounts.set(rel.masuk_id, rel.keluar_akun);
+      });
+    }
+
+    // Get account and category names
+    const accountIds = [...new Set(recentTransactions.map(r => r.akun_id))];
+    const categoryIds = [...new Set(recentTransactions.map(r => r.kategori_id).filter(Boolean))];
+    const pairedAccountIds = [...new Set(Array.from(pairedAccounts.values()))];
+    const allAccountIds = [...new Set([...accountIds, ...pairedAccountIds])];
+
+    const accountNames = new Map();
+    if (allAccountIds.length > 0) {
+      const accounts = await akunDB.queryAll<{id: string, nama_akun: string}>`
+        SELECT id, nama_akun FROM akun WHERE id = ANY(${allAccountIds}) AND dihapus_pada IS NULL
+      `;
+      accounts.forEach(a => accountNames.set(a.id, a.nama_akun));
+      
+      const goals = await tujuanDB.queryAll<{id: string, nama_tujuan: string}>`
+        SELECT id, nama_tujuan FROM tujuan_tabungan WHERE id = ANY(${allAccountIds}) AND dihapus_pada IS NULL
+      `;
+      goals.forEach(g => accountNames.set(g.id, `🎯 ${g.nama_tujuan}`));
+    }
+
+    const categoryNames = new Map();
+    if (categoryIds.length > 0) {
+      const categories = await kategoriDB.queryAll<{id: string, nama_kategori: string}>`
+        SELECT id, nama_kategori FROM kategori WHERE id = ANY(${categoryIds}) AND dihapus_pada IS NULL
+      `;
+      categories.forEach(c => categoryNames.set(c.id, c.nama_kategori));
+    }
+
     // Format the response
-    const formattedTransactions = recentTransactions.map(t => {
+    const formattedTransactions = recentTransactions.slice(0, 5).map(t => {
       const transaction: any = {
         id: t.id,
         jenis: t.jenis,
         nominal: parseInt(t.nominal) / 100,
         catatan: t.catatan,
         tanggal_transaksi: t.tanggal_transaksi,
-        akun_id: t.akun_id
+        akun_id: t.akun_id,
+        nama_akun: accountNames.get(t.akun_id),
+        nama_kategori: categoryNames.get(t.kategori_id),
+        kategori_nama: categoryNames.get(t.kategori_id)
       };
 
-      if (t.jenis === 'transfer' && t.transfer_id) {
-        transaction.transfer_info = {
-          paired_transaction_id: t.paired_transaction_id,
-          transfer_id: t.transfer_id,
-          type: t.transfer_type,
-          paired_account_id: t.paired_account_id
-        };
+      if (t.jenis === 'transfer') {
+        const transferInfo = transferMap.get(t.id);
+        if (transferInfo) {
+          transaction.transfer_info = {
+            paired_transaction_id: transferInfo.pairedId,
+            transfer_id: transferInfo.transferId,
+            type: transferInfo.type,
+            paired_account_id: pairedAccounts.get(t.id),
+            paired_account_name: accountNames.get(pairedAccounts.get(t.id))
+          };
+        } else {
+          transaction.transfer_info = {
+            paired_transaction_id: null,
+            transfer_id: null,
+            type: 'keluar',
+            paired_account_id: null,
+            paired_account_name: null
+          };
+        }
       }
 
       return transaction;
