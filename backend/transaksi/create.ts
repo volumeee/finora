@@ -1,6 +1,7 @@
 import { api } from "encore.dev/api";
 import { transaksiDB } from "./db";
 import { updateBalance } from "../akun/update_balance";
+import { get as getAkun } from "../akun/get";
 
 export type JenisTransaksi = "pengeluaran" | "pemasukan" | "transfer";
 
@@ -65,19 +66,9 @@ export const create = api<CreateTransaksiRequest, Transaksi>(
 
     // For expense transactions, check if account has sufficient balance
     if (req.jenis === "pengeluaran") {
-      const account = await transaksiDB.queryRow<{saldo_terkini: string}>`
-        SELECT saldo_terkini::text FROM akun 
-        WHERE id = ${req.akun_id} AND tenant_id = ${req.tenant_id} AND dihapus_pada IS NULL
-      `;
+      const account = await getAkun({ id: req.akun_id });
       
-      if (!account) {
-        throw new Error("Akun tidak ditemukan");
-      }
-      
-      const currentBalance = parseInt(account.saldo_terkini);
-      const nominalCents = Math.round(req.nominal * 100);
-      
-      if (currentBalance < nominalCents) {
+      if (account.saldo_terkini < req.nominal) {
         throw new Error("Saldo tidak mencukupi untuk pengeluaran ini");
       }
     }

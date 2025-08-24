@@ -1211,54 +1211,36 @@ export default function CalculatorsPage() {
               {result.tabel_angsuran && result.tabel_angsuran.length > 0 && (
                 <div className="mt-6">
                   <h4 className="text-lg font-semibold mb-4">Tabel Angsuran</h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm border-collapse border border-gray-300">
-                      <thead>
-                        <tr className="bg-gray-50">
-                          <th className="border border-gray-300 px-3 py-2 text-left">
-                            Bulan
-                          </th>
-                          <th className="border border-gray-300 px-3 py-2 text-right">
-                            Angsuran Pokok
-                          </th>
-                          <th className="border border-gray-300 px-3 py-2 text-right">
-                            Angsuran Bunga
-                          </th>
-                          <th className="border border-gray-300 px-3 py-2 text-right">
-                            Total Angsuran
-                          </th>
-                          <th className="border border-gray-300 px-3 py-2 text-right">
-                            Sisa Pokok
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {result.tabel_angsuran
-                          .slice(
-                            (currentPage - 1) * itemsPerPage,
-                            currentPage * itemsPerPage
-                          )
-                          .map((row: any) => (
-                            <tr key={row.bulan} className="hover:bg-gray-50">
-                              <td className="border border-gray-300 px-3 py-2 font-medium">
-                                {row.bulan}
-                              </td>
-                              <td className="border border-gray-300 px-3 py-2 text-right">
-                                {formatCurrency(row.angsuran_pokok)}
-                              </td>
-                              <td className="border border-gray-300 px-3 py-2 text-right text-red-600">
-                                {formatCurrency(row.angsuran_bunga)}
-                              </td>
-                              <td className="border border-gray-300 px-3 py-2 text-right font-semibold">
-                                {formatCurrency(row.total_angsuran)}
-                              </td>
-                              <td className="border border-gray-300 px-3 py-2 text-right text-blue-600">
-                                {formatCurrency(row.sisa_pokok)}
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
+                  <div className="space-y-2">
+                    {result.tabel_angsuran
+                      .slice(
+                        (currentPage - 1) * itemsPerPage,
+                        currentPage * itemsPerPage
+                      )
+                      .map((row: any) => (
+                        <div key={row.bulan} className="bg-white border rounded-lg p-3 hover:bg-gray-50">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-semibold text-gray-900">Bulan {row.bulan}</span>
+                            <span className="text-sm font-bold text-gray-900">
+                              {formatCurrency(row.total_angsuran)}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <span className="text-gray-600">Pokok:</span>
+                              <div className="font-medium">{formatCurrency(row.angsuran_pokok)}</div>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Bunga:</span>
+                              <div className="font-medium text-red-600">{formatCurrency(row.angsuran_bunga)}</div>
+                            </div>
+                          </div>
+                          <div className="mt-2 pt-2 border-t">
+                            <span className="text-gray-600 text-sm">Sisa Pokok:</span>
+                            <div className="font-medium text-blue-600">{formatCurrency(row.sisa_pokok)}</div>
+                          </div>
+                        </div>
+                      ))}
                   </div>
 
                   {/* Pagination */}

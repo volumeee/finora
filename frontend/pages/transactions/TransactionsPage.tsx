@@ -484,11 +484,25 @@ export default function TransactionsPage(): JSX.Element {
                         <SelectContent>
                           {accounts.map((account) => (
                             <SelectItem key={account.id} value={account.id}>
-                              {account.nama_akun}
+                              {account.nama_akun} - {safeFormatCurrency(account.saldo_terkini || 0)}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      {formData.akun_id && (() => {
+                        const selectedAccount = accounts.find(a => a.id === formData.akun_id);
+                        if (selectedAccount) {
+                          return (
+                            <div className="text-sm p-2 bg-blue-50 rounded border">
+                              <span className="text-blue-700">Saldo tersedia: </span>
+                              <span className="font-medium text-blue-800">
+                                {safeFormatCurrency(selectedAccount.saldo_terkini || 0)}
+                              </span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
 
                     <div className="space-y-2">
@@ -523,6 +537,26 @@ export default function TransactionsPage(): JSX.Element {
                         required
                         maxLength={12}
                       />
+                      {formData.jenis === "pengeluaran" &&
+                        formData.akun_id &&
+                        formData.nominal > 0 &&
+                        (() => {
+                          const selectedAccount = accounts.find(
+                            (a) => a.id === formData.akun_id
+                          );
+                          if (
+                            selectedAccount &&
+                            (selectedAccount.saldo_terkini || 0) < formData.nominal
+                          ) {
+                            return (
+                              <p className="text-xs text-red-500">
+                                Saldo tidak mencukupi. Saldo tersedia:{" "}
+                                {safeFormatCurrency(selectedAccount.saldo_terkini || 0)}
+                              </p>
+                            );
+                          }
+                          return null;
+                        })()}
                     </div>
 
                     <div className="space-y-2">
@@ -564,7 +598,21 @@ export default function TransactionsPage(): JSX.Element {
                       >
                         Batal
                       </ResponsiveDialogButton>
-                      <ResponsiveDialogButton type="submit" disabled={isSubmitting}>
+                      <ResponsiveDialogButton 
+                        type="submit" 
+                        disabled={
+                          isSubmitting ||
+                          !formData.akun_id ||
+                          !formData.kategori_id ||
+                          formData.nominal <= 0 ||
+                          (formData.jenis === "pengeluaran" && (() => {
+                            const selectedAccount = accounts.find(
+                              (a) => a.id === formData.akun_id
+                            );
+                            return selectedAccount && (selectedAccount.saldo_terkini || 0) < formData.nominal;
+                          })())
+                        }
+                      >
                         {isSubmitting ? (
                           <>
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
