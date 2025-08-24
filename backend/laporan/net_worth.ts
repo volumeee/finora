@@ -56,16 +56,22 @@ export const laporanNetWorth = api<LaporanNetWorthParams, LaporanNetWorthRespons
     }
 
     // Get current account balances using parameterized query
-    const rawAccounts = await akunDB.queryAll<NetWorthByAccount>`
+    const rawAccounts = await akunDB.queryAll<{
+      akun_id: string;
+      nama_akun: string;
+      jenis: string;
+      saldo_terkini: string;
+      kontribusi_net_worth: string;
+    }>`
       SELECT 
         id as akun_id,
         nama_akun,
         jenis,
-        saldo_terkini,
+        saldo_terkini::text,
         CASE 
-          WHEN jenis IN ('kas', 'bank', 'e_wallet', 'aset') THEN saldo_terkini
-          WHEN jenis IN ('kartu_kredit', 'pinjaman') THEN -saldo_terkini
-          ELSE 0
+          WHEN jenis IN ('kas', 'bank', 'e_wallet', 'aset') THEN saldo_terkini::text
+          WHEN jenis IN ('kartu_kredit', 'pinjaman') THEN (-saldo_terkini)::text
+          ELSE '0'
         END as kontribusi_net_worth
       FROM akun
       WHERE tenant_id = ${tenant_id} AND dihapus_pada IS NULL
@@ -73,10 +79,12 @@ export const laporanNetWorth = api<LaporanNetWorthParams, LaporanNetWorthRespons
     `;
     
     // Convert from cents to regular numbers
-    const accounts = rawAccounts.map(acc => ({
-      ...acc,
-      saldo_terkini: acc.saldo_terkini / 100,
-      kontribusi_net_worth: acc.kontribusi_net_worth / 100
+    const accounts: NetWorthByAccount[] = rawAccounts.map(acc => ({
+      akun_id: acc.akun_id,
+      nama_akun: acc.nama_akun,
+      jenis: acc.jenis,
+      saldo_terkini: parseInt(acc.saldo_terkini) / 100,
+      kontribusi_net_worth: parseInt(acc.kontribusi_net_worth) / 100
     }));
     
     const totalAset = accounts
@@ -88,12 +96,12 @@ export const laporanNetWorth = api<LaporanNetWorthParams, LaporanNetWorthRespons
       .reduce((sum, acc) => sum + Math.abs(acc.saldo_terkini), 0);
     
     // Add savings goals to assets
-    const goalAssets = await tujuanDB.queryAll<{id: string, nama_tujuan: string, nominal_terkumpul: number}>`
-      SELECT id, nama_tujuan, nominal_terkumpul FROM tujuan_tabungan 
+    const goalAssets = await tujuanDB.queryAll<{id: string, nama_tujuan: string, nominal_terkumpul: string}>`
+      SELECT id, nama_tujuan, nominal_terkumpul::text FROM tujuan_tabungan 
       WHERE tenant_id = ${tenant_id} AND dihapus_pada IS NULL
     `;
     
-    const totalGoalAssets = goalAssets.reduce((sum, goal) => sum + (goal.nominal_terkumpul / 100), 0);
+    const totalGoalAssets = goalAssets.reduce((sum, goal) => sum + (parseInt(goal.nominal_terkumpul) / 100), 0);
     const adjustedTotalAset = totalAset + totalGoalAssets;
     const netWorthTerkini = adjustedTotalAset - totalLiabilitas;
     
@@ -139,15 +147,15 @@ export const laporanNetWorth = api<LaporanNetWorthParams, LaporanNetWorthRespons
       net_worth_terkini: netWorthTerkini,
       perubahan_periode: perubahanPeriode,
       perubahan_persen: perubahanPersen,
-      trend_bulanan: trendBulanan,
+      trend_bulanan: trendBulanan.reverse(),
       breakdown_akun: [
         ...accounts,
         ...goalAssets.map((goal) => ({
           akun_id: goal.id,
           nama_akun: `🎯 ${goal.nama_tujuan}`,
           jenis: 'tujuan_tabungan',
-          saldo_terkini: goal.nominal_terkumpul / 100,
-          kontribusi_net_worth: goal.nominal_terkumpul / 100
+          saldo_terkini: parseInt(goal.nominal_terkumpul) / 100,
+          kontribusi_net_worth: parseInt(goal.nominal_terkumpul) / 100
         }))
       ]
     };

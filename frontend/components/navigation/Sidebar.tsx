@@ -36,6 +36,7 @@ export default function Sidebar() {
             <li key={item.name}>
               <NavLink
                 to={item.href}
+                end={item.href === '/dashboard'}
                 className={({ isActive }) =>
                   cn(
                     'flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',

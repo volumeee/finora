@@ -231,8 +231,8 @@ export const NetWorthReport: React.FC<NetWorthReportProps> = ({ reportData, form
           <CardContent className="px-4 sm:px-6">
             <div className="space-y-2 sm:space-y-3 max-h-80 overflow-y-auto">
               {reportData.trend_bulanan.map((item: any, index: number) => {
-                const isLatest = index === reportData.trend_bulanan.length - 1;
-                const prevItem = index > 0 ? reportData.trend_bulanan[index - 1] : null;
+                const isLatest = index === 0;
+                const prevItem = index < reportData.trend_bulanan.length - 1 ? reportData.trend_bulanan[index + 1] : null;
                 const growth = prevItem ? ((item.net_worth - prevItem.net_worth) / prevItem.net_worth * 100) : 0;
                 
                 return (

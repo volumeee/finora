@@ -105,57 +105,77 @@ export const getStats = api<DashboardStatsRequest, DashboardStatsResponse>(
       req.tenant_id
     );
 
-    // Get transfer info
+    // Get transfer info and goal contributions
     const transferIds = recentTransactions.filter(t => t.jenis === 'transfer').map(t => t.id);
     const transferMap = new Map();
     const pairedAccounts = new Map();
+    const goalContributions = new Map();
     
     if (transferIds.length > 0) {
+      // Get regular transfers
       const transfers = await transaksiDB.queryAll<{
-        id: string;
+        transfer_id: string;
         transaksi_keluar_id: string;
         transaksi_masuk_id: string;
-      }>`
-        SELECT id, transaksi_keluar_id, transaksi_masuk_id
-        FROM transfer_antar_akun
-        WHERE transaksi_keluar_id = ANY(${transferIds}) OR transaksi_masuk_id = ANY(${transferIds})
-      `;
-      
-      transfers.forEach(t => {
-        transferMap.set(t.transaksi_keluar_id, { transferId: t.id, type: 'keluar', pairedId: t.transaksi_masuk_id });
-        transferMap.set(t.transaksi_masuk_id, { transferId: t.id, type: 'masuk', pairedId: t.transaksi_keluar_id });
-      });
-
-      const allTransferRelations = await transaksiDB.queryAll<{
-        transfer_id: string;
-        keluar_id: string;
-        masuk_id: string;
-        keluar_akun: string;
-        masuk_akun: string;
+        keluar_akun_id: string;
+        masuk_akun_id: string;
       }>`
         SELECT 
           ta.id as transfer_id,
-          ta.transaksi_keluar_id as keluar_id,
-          ta.transaksi_masuk_id as masuk_id,
-          t1.akun_id as keluar_akun,
-          t2.akun_id as masuk_akun
+          ta.transaksi_keluar_id,
+          ta.transaksi_masuk_id,
+          t1.akun_id as keluar_akun_id,
+          t2.akun_id as masuk_akun_id
         FROM transfer_antar_akun ta
-        LEFT JOIN transaksi t1 ON ta.transaksi_keluar_id = t1.id
-        LEFT JOIN transaksi t2 ON ta.transaksi_masuk_id = t2.id
+        JOIN transaksi t1 ON ta.transaksi_keluar_id = t1.id
+        JOIN transaksi t2 ON ta.transaksi_masuk_id = t2.id
         WHERE (ta.transaksi_keluar_id = ANY(${transferIds}) OR ta.transaksi_masuk_id = ANY(${transferIds}))
         AND t1.dihapus_pada IS NULL AND t2.dihapus_pada IS NULL
       `;
       
-      allTransferRelations.forEach(rel => {
-        pairedAccounts.set(rel.keluar_id, rel.masuk_akun);
-        pairedAccounts.set(rel.masuk_id, rel.keluar_akun);
+      transfers.forEach(t => {
+        transferMap.set(t.transaksi_keluar_id, { 
+          transferId: t.transfer_id, 
+          type: 'keluar', 
+          pairedId: t.transaksi_masuk_id,
+          pairedAccountId: t.masuk_akun_id
+        });
+        transferMap.set(t.transaksi_masuk_id, { 
+          transferId: t.transfer_id, 
+          type: 'masuk', 
+          pairedId: t.transaksi_keluar_id,
+          pairedAccountId: t.keluar_akun_id
+        });
+      });
+
+      // Get goal contributions (transfers to goals)
+      const contributions = await tujuanDB.queryAll<{
+        transaksi_id: string;
+        tujuan_tabungan_id: string;
+        nama_tujuan: string;
+      }>`
+        SELECT 
+          kt.transaksi_id,
+          kt.tujuan_tabungan_id,
+          tt.nama_tujuan
+        FROM kontribusi_tujuan kt
+        JOIN tujuan_tabungan tt ON kt.tujuan_tabungan_id = tt.id
+        WHERE kt.transaksi_id = ANY(${transferIds})
+        AND tt.dihapus_pada IS NULL
+      `;
+      
+      contributions.forEach(c => {
+        goalContributions.set(c.transaksi_id, {
+          goalId: c.tujuan_tabungan_id,
+          goalName: c.nama_tujuan
+        });
       });
     }
 
     // Get account and category names
     const accountIds = [...new Set(recentTransactions.map(r => r.akun_id))];
     const categoryIds = [...new Set(recentTransactions.map(r => r.kategori_id).filter(Boolean))];
-    const pairedAccountIds = [...new Set(Array.from(pairedAccounts.values()))];
+    const pairedAccountIds = [...new Set(Array.from(transferMap.values()).map(t => t.pairedAccountId).filter(Boolean))];
     const allAccountIds = [...new Set([...accountIds, ...pairedAccountIds])];
 
     const accountNames = new Map();
@@ -164,11 +184,6 @@ export const getStats = api<DashboardStatsRequest, DashboardStatsResponse>(
         SELECT id, nama_akun FROM akun WHERE id = ANY(${allAccountIds}) AND dihapus_pada IS NULL
       `;
       accounts.forEach(a => accountNames.set(a.id, a.nama_akun));
-      
-      const goals = await tujuanDB.queryAll<{id: string, nama_tujuan: string}>`
-        SELECT id, nama_tujuan FROM tujuan_tabungan WHERE id = ANY(${allAccountIds}) AND dihapus_pada IS NULL
-      `;
-      goals.forEach(g => accountNames.set(g.id, `🎯 ${g.nama_tujuan}`));
     }
 
     const categoryNames = new Map();
@@ -195,21 +210,34 @@ export const getStats = api<DashboardStatsRequest, DashboardStatsResponse>(
 
       if (t.jenis === 'transfer') {
         const transferInfo = transferMap.get(t.id);
+        const goalInfo = goalContributions.get(t.id);
+        
         if (transferInfo) {
+          // Regular account transfer
           transaction.transfer_info = {
             paired_transaction_id: transferInfo.pairedId,
             transfer_id: transferInfo.transferId,
             type: transferInfo.type,
-            paired_account_id: pairedAccounts.get(t.id),
-            paired_account_name: accountNames.get(pairedAccounts.get(t.id))
+            paired_account_id: transferInfo.pairedAccountId,
+            paired_account_name: accountNames.get(transferInfo.pairedAccountId)
+          };
+        } else if (goalInfo) {
+          // Transfer to goal
+          transaction.transfer_info = {
+            paired_transaction_id: null,
+            transfer_id: null,
+            type: 'keluar',
+            paired_account_id: goalInfo.goalId,
+            paired_account_name: `🎯 ${goalInfo.goalName}`
           };
         } else {
+          // Unknown transfer (shouldn't happen)
           transaction.transfer_info = {
             paired_transaction_id: null,
             transfer_id: null,
             type: 'keluar',
             paired_account_id: null,
-            paired_account_name: null
+            paired_account_name: 'Transfer tidak diketahui'
           };
         }
       }
