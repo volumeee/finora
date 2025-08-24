@@ -2,7 +2,9 @@ import { api } from "encore.dev/api";
 import { Query } from "encore.dev/api";
 import { SQLDatabase } from "encore.dev/storage/sqldb";
 
-const laporanDB = SQLDatabase.named("akun");
+const akunDB = SQLDatabase.named("akun");
+const tujuanDB = SQLDatabase.named("tujuan");
+const transaksiDB = SQLDatabase.named("transaksi");
 
 export interface NetWorthItem {
   tanggal: string;
@@ -41,8 +43,20 @@ interface LaporanNetWorthParams {
 export const laporanNetWorth = api<LaporanNetWorthParams, LaporanNetWorthResponse>(
   { expose: true, method: "GET", path: "/laporan/net-worth" },
   async ({ tenant_id, tanggal_dari, tanggal_sampai }) => {
-    // Get current account balances
-    const accountsQuery = `
+    // Validate date inputs
+    const startDate = new Date(tanggal_dari);
+    const endDate = new Date(tanggal_sampai);
+    
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      throw new Error('Format tanggal tidak valid');
+    }
+    
+    if (endDate <= startDate) {
+      throw new Error('Tanggal sampai harus setelah tanggal dari');
+    }
+
+    // Get current account balances using parameterized query
+    const rawAccounts = await akunDB.queryAll<NetWorthByAccount>`
       SELECT 
         id as akun_id,
         nama_akun,
@@ -54,11 +68,9 @@ export const laporanNetWorth = api<LaporanNetWorthParams, LaporanNetWorthRespons
           ELSE 0
         END as kontribusi_net_worth
       FROM akun
-      WHERE tenant_id = $1 AND dihapus_pada IS NULL
+      WHERE tenant_id = ${tenant_id} AND dihapus_pada IS NULL
       ORDER BY jenis, nama_akun
     `;
-    
-    const rawAccounts = await laporanDB.rawQueryAll<NetWorthByAccount>(accountsQuery, tenant_id);
     
     // Convert from cents to regular numbers
     const accounts = rawAccounts.map(acc => ({
@@ -75,25 +87,36 @@ export const laporanNetWorth = api<LaporanNetWorthParams, LaporanNetWorthRespons
       .filter(acc => ['kartu_kredit', 'pinjaman'].includes(acc.jenis))
       .reduce((sum, acc) => sum + Math.abs(acc.saldo_terkini), 0);
     
-    const netWorthTerkini = totalAset - totalLiabilitas;
+    // Add savings goals to assets
+    const goalAssets = await tujuanDB.queryAll<{id: string, nama_tujuan: string, nominal_terkumpul: number}>`
+      SELECT id, nama_tujuan, nominal_terkumpul FROM tujuan_tabungan 
+      WHERE tenant_id = ${tenant_id} AND dihapus_pada IS NULL
+    `;
     
-    // Generate monthly trend (simplified - in real implementation, you'd calculate historical balances)
-    const startDate = new Date(tanggal_dari);
-    const endDate = new Date(tanggal_sampai);
+    const totalGoalAssets = goalAssets.reduce((sum, goal) => sum + (goal.nominal_terkumpul / 100), 0);
+    const adjustedTotalAset = totalAset + totalGoalAssets;
+    const netWorthTerkini = adjustedTotalAset - totalLiabilitas;
+    
+    // Generate monthly trend with proper growth calculation
     const trendBulanan: NetWorthItem[] = [];
+    const DEMO_GROWTH_FACTOR = 0.9; // Base growth assumption
     
-    // For demo purposes, generate sample trend data
-    // In production, you'd calculate actual historical net worth
     let currentDate = new Date(startDate);
-    let baseNetWorth = netWorthTerkini * 0.9; // Assume 10% growth over period
+    let baseNetWorth = netWorthTerkini * DEMO_GROWTH_FACTOR;
+    
+    const timeDiff = endDate.getTime() - startDate.getTime();
+    if (timeDiff <= 0) {
+      throw new Error('Periode tanggal tidak valid');
+    }
     
     while (currentDate <= endDate) {
-      const monthProgress = (currentDate.getTime() - startDate.getTime()) / (endDate.getTime() - startDate.getTime());
+      const monthProgress = (currentDate.getTime() - startDate.getTime()) / timeDiff;
       const currentNetWorth = baseNetWorth + (netWorthTerkini - baseNetWorth) * monthProgress;
+      const currentAssets = currentNetWorth + totalLiabilitas;
       
       trendBulanan.push({
         tanggal: currentDate.toISOString().split('T')[0],
-        total_aset: currentNetWorth + totalLiabilitas,
+        total_aset: Math.max(0, currentAssets),
         total_liabilitas: totalLiabilitas,
         net_worth: currentNetWorth
       });
@@ -117,7 +140,16 @@ export const laporanNetWorth = api<LaporanNetWorthParams, LaporanNetWorthRespons
       perubahan_periode: perubahanPeriode,
       perubahan_persen: perubahanPersen,
       trend_bulanan: trendBulanan,
-      breakdown_akun: accounts
+      breakdown_akun: [
+        ...accounts,
+        ...goalAssets.map((goal) => ({
+          akun_id: goal.id,
+          nama_akun: `🎯 ${goal.nama_tujuan}`,
+          jenis: 'tujuan_tabungan',
+          saldo_terkini: goal.nominal_terkumpul / 100,
+          kontribusi_net_worth: goal.nominal_terkumpul / 100
+        }))
+      ]
     };
   }
 );

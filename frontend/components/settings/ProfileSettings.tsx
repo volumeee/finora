@@ -76,7 +76,7 @@ export default function ProfileSettings() {
 
     try {
       const updatedProfile = await updateProfile(formData);
-      updateUser?.(updatedProfile);
+      updateUser(updatedProfile);
     } catch (error) {
       // Error handling is done in the hook
     }

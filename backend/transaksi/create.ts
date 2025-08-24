@@ -55,12 +55,31 @@ export const create = api<CreateTransaksiRequest, Transaksi>(
 
     // Validate nominal
     if (req.nominal <= 0) {
-      throw new Error("Amount must be positive");
+      throw new Error("Nominal harus lebih dari 0");
     }
     
     // Validate maximum amount (1 billion IDR)
     if (req.nominal > 1000000000) {
-      throw new Error("Amount exceeds maximum limit");
+      throw new Error("Nominal melebihi batas maksimum");
+    }
+
+    // For expense transactions, check if account has sufficient balance
+    if (req.jenis === "pengeluaran") {
+      const account = await transaksiDB.queryRow<{saldo_terkini: string}>`
+        SELECT saldo_terkini::text FROM akun 
+        WHERE id = ${req.akun_id} AND tenant_id = ${req.tenant_id} AND dihapus_pada IS NULL
+      `;
+      
+      if (!account) {
+        throw new Error("Akun tidak ditemukan");
+      }
+      
+      const currentBalance = parseInt(account.saldo_terkini);
+      const nominalCents = Math.round(req.nominal * 100);
+      
+      if (currentBalance < nominalCents) {
+        throw new Error("Saldo tidak mencukupi untuk pengeluaran ini");
+      }
     }
     // Start transaction
     const tx = await transaksiDB.begin();

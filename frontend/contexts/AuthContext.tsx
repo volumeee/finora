@@ -25,6 +25,8 @@ interface AuthContextType {
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
+  updateUser: (userData: Partial<User>) => void;
+  updateTenants: (tenantsData: Tenant[]) => void;
 }
 
 interface RegisterData {
@@ -159,6 +161,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateUser = (userData: Partial<User>) => {
+    if (!user) return;
+    const updatedUser = { ...user, ...userData };
+    setUser(updatedUser);
+    localStorage.setItem('user_data', JSON.stringify(updatedUser));
+  };
+
+  const updateTenants = (tenantsData: Tenant[]) => {
+    setTenants(tenantsData);
+    localStorage.setItem('tenants_data', JSON.stringify(tenantsData));
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -168,7 +182,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
-      refreshAuth
+      refreshAuth,
+      updateUser,
+      updateTenants
     }}>
       {children}
     </AuthContext.Provider>

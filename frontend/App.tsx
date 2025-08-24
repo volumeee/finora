@@ -12,6 +12,7 @@ import AcceptInvitePage from '@/pages/auth/AcceptInvitePage';
 import DashboardPage from '@/pages/dashboard/DashboardPage';
 import TransactionsPage from '@/pages/transactions/TransactionsPage';
 import AccountsPage from '@/pages/accounts/AccountsPage';
+import AccountHistoryPage from '@/pages/accounts/AccountHistoryPage';
 import CategoriesPage from '@/pages/categories/CategoriesPage';
 import GoalsPage from '@/pages/goals/GoalsPage';
 import CalculatorsPage from '@/pages/calculators/CalculatorsPage';
@@ -55,6 +56,7 @@ function App() {
                   <Route index element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
                   <Route path="transactions" element={<ErrorBoundary><TransactionsPage /></ErrorBoundary>} />
                   <Route path="accounts" element={<ErrorBoundary><AccountsPage /></ErrorBoundary>} />
+                  <Route path="accounts/:accountId/history" element={<ErrorBoundary><AccountHistoryPage /></ErrorBoundary>} />
                   <Route path="categories" element={<ErrorBoundary><CategoriesPage /></ErrorBoundary>} />
                   <Route path="goals" element={<ErrorBoundary><GoalsPage /></ErrorBoundary>} />
                   <Route path="calculators" element={<ErrorBoundary><CalculatorsPage /></ErrorBoundary>} />

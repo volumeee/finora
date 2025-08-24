@@ -5,6 +5,7 @@ interface TenantContextType {
   currentTenant: string | null;
   setCurrentTenant: (tenantId: string) => void;
   getCurrentTenant: () => any;
+  refreshCurrentTenant: () => void;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -38,11 +39,18 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     return tenants.find(t => t.id === currentTenant);
   };
 
+  const refreshCurrentTenant = () => {
+    // Force re-render by updating the context
+    // This will cause components using getCurrentTenant to re-render with fresh data
+    setCurrentTenantState(currentTenant);
+  };
+
   return (
     <TenantContext.Provider value={{
       currentTenant,
       setCurrentTenant,
-      getCurrentTenant
+      getCurrentTenant,
+      refreshCurrentTenant
     }}>
       {children}
     </TenantContext.Provider>

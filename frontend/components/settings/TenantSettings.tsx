@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTenant } from '@/contexts/TenantContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTenantSettings } from '@/hooks/useSettings';
 import { Skeleton } from '@/components/ui/skeleton';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -34,7 +35,8 @@ function TenantSettingsSkeleton() {
 }
 
 export default function TenantSettings() {
-  const { getCurrentTenant, currentTenant: tenantId } = useTenant();
+  const { getCurrentTenant, currentTenant: tenantId, refreshCurrentTenant } = useTenant();
+  const { tenants, updateTenants } = useAuth();
   const { getTenant, updateTenant, isLoading } = useTenantSettings();
   const [formData, setFormData] = useState({ nama: '', sub_domain: '' });
   const [initialLoading, setInitialLoading] = useState(true);
@@ -73,7 +75,18 @@ export default function TenantSettings() {
     if (!tenantId) return;
     
     try {
-      await updateTenant(tenantId, formData);
+      const updatedTenant = await updateTenant(tenantId, formData);
+      
+      // Update tenants in AuthContext with the new data
+      const updatedTenants = tenants.map(tenant => 
+        tenant.id === tenantId 
+          ? { ...tenant, nama: updatedTenant.nama, sub_domain: updatedTenant.sub_domain }
+          : tenant
+      );
+      updateTenants(updatedTenants);
+      
+      // Force refresh of current tenant in TenantContext
+      refreshCurrentTenant();
     } catch (error) {
       // Error handling is done in the hook
     }

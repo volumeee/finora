@@ -121,6 +121,24 @@ export function ListSkeleton({
   );
 }
 
+// History List Skeleton
+export function HistoryListSkeleton({ 
+  count = 3, 
+  type = "contribution" 
+}: { 
+  count?: number; 
+  type?: "contribution" | "calculator";
+}) {
+  const SkeletonComponent = type === "contribution" ? ContributionHistorySkeleton : CalculatorHistorySkeleton;
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <SkeletonComponent key={i} />
+      ))}
+    </div>
+  );
+}
+
 // Page Header Skeleton
 export function PageHeaderSkeleton() {
   return (
@@ -130,6 +148,48 @@ export function PageHeaderSkeleton() {
         <Skeleton className="h-4 w-64" />
       </div>
       <Skeleton className="h-10 w-32" />
+    </div>
+  );
+}
+
+// Contribution History Skeleton
+export function ContributionHistorySkeleton() {
+  return (
+    <div className="flex justify-between items-start p-3 bg-white border rounded-lg">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-12" />
+        </div>
+        <Skeleton className="h-3 w-32 mb-1" />
+        <Skeleton className="h-3 w-24" />
+      </div>
+      <div className="text-right flex-shrink-0 ml-3">
+        <Skeleton className="h-4 w-16 mb-1" />
+        <Skeleton className="h-3 w-12" />
+      </div>
+    </div>
+  );
+}
+
+// Calculator History Skeleton
+export function CalculatorHistorySkeleton() {
+  return (
+    <div className="border rounded-lg p-3">
+      <div className="flex justify-between items-start">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-4 w-16" />
+          </div>
+          <Skeleton className="h-4 w-28 mb-1" />
+          <Skeleton className="h-3 w-20" />
+        </div>
+        <div className="flex gap-1 ml-2">
+          <Skeleton className="h-6 w-6" />
+          <Skeleton className="h-6 w-6" />
+        </div>
+      </div>
     </div>
   );
 }

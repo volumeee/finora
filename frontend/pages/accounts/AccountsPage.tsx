@@ -12,7 +12,8 @@ import {
   ResponsiveDialogButton,
 } from '@/components/ui/ResponsiveDialog';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, Edit, Trash2, Wallet, CreditCard, PiggyBank } from 'lucide-react';
+import { Plus, Edit, Trash2, Wallet, CreditCard, PiggyBank, History } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useTenant } from '@/contexts/TenantContext';
 import apiClient from '@/lib/api-client';
 import { CardSkeleton } from '@/components/ui/skeletons';
@@ -87,6 +88,7 @@ export default function AccountsPage(): JSX.Element {
 
   const { currentTenant } = useTenant();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const loadAccounts = useCallback(async (): Promise<void> => {
     if (!currentTenant) return;
@@ -393,6 +395,15 @@ export default function AccountsPage(): JSX.Element {
                       </p>
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/dashboard/accounts/${account.id}/history`)}
+                        className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                        title="Lihat Riwayat"
+                      >
+                        <History className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"

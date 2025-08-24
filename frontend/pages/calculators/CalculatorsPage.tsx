@@ -17,13 +17,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogActions,
+  ResponsiveDialogButton,
+} from "@/components/ui/ResponsiveDialog";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Calculator,
@@ -32,7 +29,6 @@ import {
   TrendingUp,
   ArrowRight,
   Save,
-  History,
   Edit,
   Trash2,
 } from "lucide-react";
@@ -40,6 +36,7 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { formatCurrency } from "@/lib/format";
 import apiClient from "@/lib/api-client";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import { HistoryListSkeleton } from "@/components/ui/skeletons";
 import { useTenant } from "@/contexts/TenantContext";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
@@ -75,59 +72,6 @@ interface CustomGoalFormData {
   target_tanggal: string;
 }
 
-interface KPRResult {
-  angsuran_bulanan: number;
-  total_pembayaran: number;
-  total_bunga: number;
-  uang_muka: number;
-  jumlah_pinjaman: number;
-  biaya_tambahan: number;
-  tabel_angsuran: {
-    bulan: number;
-    angsuran_pokok: number;
-    angsuran_bunga: number;
-    total_angsuran: number;
-    sisa_pokok: number;
-  }[];
-}
-
-interface EmergencyResult {
-  dana_darurat_minimum?: number;
-  dana_darurat_ideal?: number;
-  rekomendasi?: string;
-  tabungan_bulanan_diperlukan: number;
-  target_dana_darurat: number;
-  rekomendasi_instrumen: string[];
-  skenario: {
-    agresif: { jumlah_bulan: number; target_nominal: number };
-    konservatif: { jumlah_bulan: number; target_nominal: number };
-    moderat: { jumlah_bulan: number; target_nominal: number };
-  };
-}
-
-interface RetirementResult {
-  dana_pensiun_dibutuhkan?: number;
-  tabungan_bulanan_dibutuhkan?: number;
-  strategi_investasi?: string;
-  target_dana_pensiun: number;
-  tabungan_bulanan_diperlukan: number;
-  tahun_menabung: number;
-  nilai_sekarang_target: number;
-  rekomendasi_investasi: string[];
-  proyeksi_tahunan: {
-    tahun: number;
-    usia: number;
-    kontribusi_tahunan: number;
-    nilai_investasi: number;
-  }[];
-}
-
-interface CustomGoalResult {
-  kontribusi_bulanan_dibutuhkan: number;
-  total_kontribusi: number;
-  proyeksi_return: number;
-}
-
 type CalculatorResult = any;
 
 interface Calculator {
@@ -150,13 +94,14 @@ interface SavedCalculation {
 export default function CalculatorsPage() {
   const [activeCalculator, setActiveCalculator] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [result, setResult] = useState<CalculatorResult | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [savedCalculations, setSavedCalculations] = useState<
     SavedCalculation[]
   >([]);
+  const [isLoadedFromHistory, setIsLoadedFromHistory] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingCalculation, setEditingCalculation] =
     useState<SavedCalculation | null>(null);
@@ -249,6 +194,7 @@ export default function CalculatorsPage() {
 
       setShowSaveDialog(false);
       setSaveName("");
+      loadSavedCalculations(activeCalculator);
     } catch (error) {
       toast({
         title: "Gagal menyimpan perhitungan",
@@ -274,6 +220,7 @@ export default function CalculatorsPage() {
       if (!currentTenant) return;
 
       try {
+        setIsLoadingHistory(true);
         const response = await apiClient.kalkulator.getSavedCalculations({
           tenant_id: currentTenant,
           type: calculatorType || undefined,
@@ -286,6 +233,8 @@ export default function CalculatorsPage() {
             error instanceof Error ? error.message : "Terjadi kesalahan",
           variant: "destructive",
         });
+      } finally {
+        setIsLoadingHistory(false);
       }
     },
     [currentTenant, toast]
@@ -301,7 +250,6 @@ export default function CalculatorsPage() {
           tenant_id: currentTenant,
         });
 
-        // Set form data based on calculator type
         switch (calculation.tipe_kalkulator) {
           case "kpr":
             setKprData(calculation.input_data);
@@ -319,7 +267,7 @@ export default function CalculatorsPage() {
 
         setResult(calculation.result_data);
         setActiveCalculator(calculation.tipe_kalkulator);
-        setShowHistoryDialog(false);
+        setIsLoadedFromHistory(true);
 
         toast({
           title: "Perhitungan dimuat",
@@ -350,7 +298,7 @@ export default function CalculatorsPage() {
           title: "Perhitungan dihapus",
           description: `Perhitungan "${name}" berhasil dihapus`,
         });
-        loadSavedCalculations();
+        loadSavedCalculations(activeCalculator);
       } catch (error) {
         toast({
           title: "Gagal menghapus perhitungan",
@@ -360,7 +308,7 @@ export default function CalculatorsPage() {
         });
       }
     },
-    [currentTenant, toast, loadSavedCalculations]
+    [currentTenant, toast, loadSavedCalculations, activeCalculator]
   );
 
   const updateSavedCalculation = useCallback(async () => {
@@ -384,7 +332,7 @@ export default function CalculatorsPage() {
       setShowEditDialog(false);
       setEditingCalculation(null);
       setSaveName("");
-      loadSavedCalculations();
+      loadSavedCalculations(activeCalculator);
     } catch (error) {
       toast({
         title: "Gagal memperbarui perhitungan",
@@ -399,6 +347,7 @@ export default function CalculatorsPage() {
     currentTenant,
     toast,
     loadSavedCalculations,
+    activeCalculator,
   ]);
 
   const handleEditCalculation = useCallback((calculation: SavedCalculation) => {
@@ -442,7 +391,6 @@ export default function CalculatorsPage() {
     async (e: React.FormEvent) => {
       e.preventDefault();
 
-      // Validate input data
       if (kprData.harga_properti <= 0) {
         toast({
           title: "Data tidak valid",
@@ -463,7 +411,6 @@ export default function CalculatorsPage() {
 
       setIsLoading(true);
       try {
-        // Transform frontend data to match backend interface
         const backendData = {
           harga_properti: kprData.harga_properti,
           uang_muka_persen: (kprData.uang_muka / kprData.harga_properti) * 100,
@@ -473,6 +420,7 @@ export default function CalculatorsPage() {
         };
         const response = await apiClient.kalkulator.hitungKPR(backendData);
         setResult(response);
+        setIsLoadedFromHistory(false);
         toast({
           title: "Perhitungan KPR berhasil",
           description: "Hasil simulasi KPR telah dihitung",
@@ -497,7 +445,6 @@ export default function CalculatorsPage() {
     async (e: React.FormEvent) => {
       e.preventDefault();
 
-      // Validate input data
       if (emergencyData.pengeluaran_bulanan <= 0) {
         toast({
           title: "Data tidak valid",
@@ -513,6 +460,7 @@ export default function CalculatorsPage() {
           emergencyData
         );
         setResult(response);
+        setIsLoadedFromHistory(false);
         toast({
           title: "Perhitungan dana darurat berhasil",
           description: "Kebutuhan dana darurat telah dihitung",
@@ -537,7 +485,6 @@ export default function CalculatorsPage() {
     async (e: React.FormEvent) => {
       e.preventDefault();
 
-      // Validate input data
       if (
         retirementData.usia_sekarang <= 0 ||
         retirementData.usia_pensiun <= 0
@@ -574,6 +521,7 @@ export default function CalculatorsPage() {
           retirementData
         );
         setResult(response);
+        setIsLoadedFromHistory(false);
         toast({
           title: "Perhitungan pensiun berhasil",
           description: "Rencana pensiun telah dihitung",
@@ -598,7 +546,6 @@ export default function CalculatorsPage() {
     async (e: React.FormEvent) => {
       e.preventDefault();
 
-      // Validate input data
       if (
         !customGoalData.target_nominal ||
         customGoalData.target_nominal <= 0
@@ -634,27 +581,24 @@ export default function CalculatorsPage() {
 
       setIsLoading(true);
       try {
-        // Calculate target date from months
         const targetDate = new Date();
         targetDate.setMonth(
           targetDate.getMonth() + customGoalData.jangka_waktu_bulan
         );
 
-        // Transform frontend data to match backend interface
         const backendData = {
           target_nominal: Number(customGoalData.target_nominal) || 0,
-          target_tanggal: targetDate.toISOString().split("T")[0], // YYYY-MM-DD format
+          target_tanggal: targetDate.toISOString().split("T")[0],
           nominal_awal: Number(customGoalData.kontribusi_bulanan) || 0,
           return_investasi_tahunan_persen:
             Number(customGoalData.return_investasi_tahunan) || 0,
         };
 
-        console.log("Custom Goal Data being sent:", backendData);
-
         const response = await apiClient.kalkulator.hitungCustomGoal(
           backendData
         );
         setResult(response);
+        setIsLoadedFromHistory(false);
         toast({
           title: "Perhitungan tujuan custom berhasil",
           description: "Strategi mencapai tujuan telah dihitung",
@@ -681,9 +625,9 @@ export default function CalculatorsPage() {
     setCurrentPage(1);
     setSaveName("");
     setShowSaveDialog(false);
-    setShowHistoryDialog(false);
     setShowEditDialog(false);
     setEditingCalculation(null);
+    setIsLoadedFromHistory(false);
   }, []);
 
   const renderKPRForm = () => (
@@ -858,7 +802,6 @@ export default function CalculatorsPage() {
           required
         />
       </div>
-
       <div className="space-y-2">
         <Label htmlFor="inflasi_tahunan">Inflasi Tahunan (%)</Label>
         <Input
@@ -1030,29 +973,33 @@ export default function CalculatorsPage() {
     };
 
     return (
-      <div key={calc.id} className="border rounded-lg p-4 hover:bg-gray-50">
+      <div
+        key={calc.id}
+        className="border rounded-lg p-3 hover:bg-gray-50 transition-colors"
+      >
         <div className="flex justify-between items-start">
           <div
             className="flex-1 cursor-pointer"
             onClick={() => loadSavedCalculation(calc.id)}
           >
-            <div className="flex items-center gap-2">
-              <h4 className="font-semibold">{calc.nama_perhitungan}</h4>
-              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+            <div className="flex items-center gap-2 mb-1">
+              <h4 className="font-medium text-sm">{calc.nama_perhitungan}</h4>
+              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
                 {getCalculatorName(calc.tipe_kalkulator)}
               </span>
             </div>
-            <p className="text-sm font-medium text-blue-600 mt-1">
+            <p className="text-xs font-medium text-blue-600">
               {getResultSummary(calc.tipe_kalkulator, calc.result_data)}
             </p>
             <p className="text-xs text-gray-500 mt-1">
               {new Date(calc.created_at).toLocaleDateString("id-ID")}
             </p>
           </div>
-          <div className="flex gap-2 ml-4">
+          <div className="flex gap-1 ml-2">
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
+              className="h-6 w-6 p-0"
               onClick={(e) => {
                 e.stopPropagation();
                 handleEditCalculation(calc);
@@ -1062,7 +1009,8 @@ export default function CalculatorsPage() {
             </Button>
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
+              className="h-6 w-6 p-0"
               onClick={(e) => {
                 e.stopPropagation();
                 setDeleteDialog({ open: true, calculation: calc });
@@ -1080,859 +1028,460 @@ export default function CalculatorsPage() {
     if (!result) return null;
 
     return (
-      <Card className="mt-6">
+      <Card>
         <CardHeader>
           <CardTitle>Hasil Perhitungan</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {activeCalculator === "kpr" && "angsuran_bulanan" in result && (
-            <div className="space-y-6">
-              {/* Summary Cards */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                  <p className="text-sm text-blue-600 font-medium">
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  <p className="text-xs text-blue-600 font-medium">
                     Angsuran Bulanan
                   </p>
-                  <p className="text-xl font-bold text-blue-800">
+                  <p className="text-lg font-bold text-blue-800">
                     {formatCurrency(result.angsuran_bulanan || 0)}
                   </p>
                 </div>
-                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                  <p className="text-sm text-green-600 font-medium">
+                <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                  <p className="text-xs text-green-600 font-medium">
                     Uang Muka
                   </p>
-                  <p className="text-xl font-bold text-green-800">
+                  <p className="text-lg font-bold text-green-800">
                     {formatCurrency(result.uang_muka || 0)}
                   </p>
                 </div>
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  <p className="text-sm text-gray-600 font-medium">
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                  <p className="text-xs text-gray-600 font-medium">
                     Jumlah Pinjaman
                   </p>
-                  <p className="text-xl font-bold text-gray-800">
+                  <p className="text-lg font-bold text-gray-800">
                     {formatCurrency(result.jumlah_pinjaman || 0)}
                   </p>
                 </div>
-                <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-                  <p className="text-sm text-red-600 font-medium">
+                <div className="bg-red-50 p-3 rounded-lg border border-red-200">
+                  <p className="text-xs text-red-600 font-medium">
                     Total Bunga
                   </p>
-                  <p className="text-xl font-bold text-red-800">
+                  <p className="text-lg font-bold text-red-800">
                     {formatCurrency(result.total_bunga || 0)}
                   </p>
                 </div>
               </div>
 
-              {/* Total Payment */}
-              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+              <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
                 <div className="flex justify-between items-center">
-                  <span className="text-purple-600 font-medium">
+                  <span className="text-purple-600 font-medium text-sm">
                     Total Pembayaran:
                   </span>
-                  <span className="text-2xl font-bold text-purple-800">
+                  <span className="text-xl font-bold text-purple-800">
                     {formatCurrency(result.total_pembayaran || 0)}
                   </span>
                 </div>
               </div>
 
-              {/* Save Button */}
-              <div className="flex gap-2">
-                <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
-                  <DialogTrigger asChild>
-                    <Button className="flex-1">
-                      <Save className="h-4 w-4 mr-2" />
-                      Simpan Perhitungan
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Simpan Perhitungan</DialogTitle>
-                      <DialogDescription>
-                        Berikan nama untuk perhitungan ini agar mudah ditemukan
-                        nanti
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="save-name">Nama Perhitungan</Label>
+              {!isLoadedFromHistory && (
+                <>
+                  <Button
+                    className="w-full"
+                    onClick={() => setShowSaveDialog(true)}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Simpan Perhitungan
+                  </Button>
+                  <ResponsiveDialog
+                    open={showSaveDialog}
+                    onOpenChange={setShowSaveDialog}
+                    title="Simpan Perhitungan"
+                    description="Berikan nama untuk perhitungan ini agar mudah ditemukan nanti"
+                  >
+                    <div className="space-y-6 p-1">
+                      <div className="space-y-2">
+                        <Label htmlFor="save-name" className="text-sm font-medium">
+                          Nama Perhitungan
+                        </Label>
                         <Input
                           id="save-name"
                           value={saveName}
                           onChange={(e) => setSaveName(e.target.value)}
                           placeholder="Contoh: Rumah Impian Jakarta"
+                          className="w-full"
+                          autoFocus
                         />
+                        <p className="text-xs text-gray-500">
+                          Gunakan nama yang mudah diingat untuk perhitungan ini
+                        </p>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => setShowSaveDialog(false)}
+                      <ResponsiveDialogActions>
+                        <ResponsiveDialogButton
                           variant="outline"
-                          className="flex-1"
+                          onClick={() => {
+                            setShowSaveDialog(false);
+                            setSaveName("");
+                          }}
                         >
                           Batal
-                        </Button>
-                        <Button
+                        </ResponsiveDialogButton>
+                        <ResponsiveDialogButton
                           onClick={handleSaveCalculation}
                           disabled={!saveName.trim()}
-                          className="flex-1"
                         >
+                          <Save className="h-4 w-4 mr-2" />
                           Simpan
-                        </Button>
-                      </div>
+                        </ResponsiveDialogButton>
+                      </ResponsiveDialogActions>
                     </div>
-                  </DialogContent>
-                </Dialog>
-
-                <Dialog
-                  open={showHistoryDialog}
-                  onOpenChange={(open) => {
-                    setShowHistoryDialog(open);
-                    if (open) loadSavedCalculations(activeCalculator);
-                  }}
-                >
-                  <DialogTrigger asChild>
-                    <Button variant="outline">
-                      <History className="h-4 w-4 mr-2" />
-                      Riwayat
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-4xl">
-                    <DialogHeader>
-                      <DialogTitle>Riwayat Perhitungan</DialogTitle>
-                      <DialogDescription>
-                        Pilih perhitungan yang ingin dimuat kembali
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="max-h-96 overflow-y-auto">
-                      {savedCalculations.length === 0 ? (
-                        <p className="text-center text-gray-500 py-8">
-                          Belum ada perhitungan tersimpan
-                        </p>
-                      ) : (
-                        <div className="space-y-2">
-                          {savedCalculations.map(renderHistoryItem)}
-                        </div>
-                      )}
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
+                  </ResponsiveDialog>
+                </>
+              )}
 
               {/* Amortization Table */}
-              <div className="mt-6">
-                <h4 className="text-lg font-semibold mb-4">Tabel Angsuran</h4>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-collapse border border-gray-300">
-                    <thead>
-                      <tr className="bg-gray-50">
-                        <th className="border border-gray-300 px-3 py-2 text-left">
-                          Bulan
-                        </th>
-                        <th className="border border-gray-300 px-3 py-2 text-right">
-                          Angsuran Pokok
-                        </th>
-                        <th className="border border-gray-300 px-3 py-2 text-right">
-                          Angsuran Bunga
-                        </th>
-                        <th className="border border-gray-300 px-3 py-2 text-right">
-                          Total Angsuran
-                        </th>
-                        <th className="border border-gray-300 px-3 py-2 text-right">
-                          Sisa Pokok
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(result.tabel_angsuran || [])
-                        .slice(
-                          (currentPage - 1) * itemsPerPage,
-                          currentPage * itemsPerPage
-                        )
-                        .map((row: any) => (
-                          <tr key={row.bulan} className="hover:bg-gray-50">
-                            <td className="border border-gray-300 px-3 py-2 font-medium">
-                              {row.bulan}
-                            </td>
-                            <td className="border border-gray-300 px-3 py-2 text-right">
-                              {formatCurrency(row.angsuran_pokok)}
-                            </td>
-                            <td className="border border-gray-300 px-3 py-2 text-right text-red-600">
-                              {formatCurrency(row.angsuran_bunga)}
-                            </td>
-                            <td className="border border-gray-300 px-3 py-2 text-right font-semibold">
-                              {formatCurrency(row.total_angsuran)}
-                            </td>
-                            <td className="border border-gray-300 px-3 py-2 text-right text-blue-600">
-                              {formatCurrency(row.sisa_pokok)}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
+              {result.tabel_angsuran && result.tabel_angsuran.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="text-lg font-semibold mb-4">Tabel Angsuran</h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-collapse border border-gray-300">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="border border-gray-300 px-3 py-2 text-left">
+                            Bulan
+                          </th>
+                          <th className="border border-gray-300 px-3 py-2 text-right">
+                            Angsuran Pokok
+                          </th>
+                          <th className="border border-gray-300 px-3 py-2 text-right">
+                            Angsuran Bunga
+                          </th>
+                          <th className="border border-gray-300 px-3 py-2 text-right">
+                            Total Angsuran
+                          </th>
+                          <th className="border border-gray-300 px-3 py-2 text-right">
+                            Sisa Pokok
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {result.tabel_angsuran
+                          .slice(
+                            (currentPage - 1) * itemsPerPage,
+                            currentPage * itemsPerPage
+                          )
+                          .map((row: any) => (
+                            <tr key={row.bulan} className="hover:bg-gray-50">
+                              <td className="border border-gray-300 px-3 py-2 font-medium">
+                                {row.bulan}
+                              </td>
+                              <td className="border border-gray-300 px-3 py-2 text-right">
+                                {formatCurrency(row.angsuran_pokok)}
+                              </td>
+                              <td className="border border-gray-300 px-3 py-2 text-right text-red-600">
+                                {formatCurrency(row.angsuran_bunga)}
+                              </td>
+                              <td className="border border-gray-300 px-3 py-2 text-right font-semibold">
+                                {formatCurrency(row.total_angsuran)}
+                              </td>
+                              <td className="border border-gray-300 px-3 py-2 text-right text-blue-600">
+                                {formatCurrency(row.sisa_pokok)}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-                {/* Pagination */}
-                <div className="flex items-center justify-between mt-4">
-                  <p className="text-sm text-gray-500">
-                    Menampilkan {(currentPage - 1) * itemsPerPage + 1} -{" "}
-                    {Math.min(
-                      currentPage * itemsPerPage,
-                      result.tabel_angsuran.length
-                    )}{" "}
-                    dari {result.tabel_angsuran?.length || 0} bulan
-                  </p>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        setCurrentPage((prev) => Math.max(prev - 1, 1))
-                      }
-                      disabled={currentPage === 1}
-                    >
-                      Sebelumnya
-                    </Button>
-                    <span className="text-sm text-gray-600">
-                      Halaman {currentPage} dari{" "}
-                      {Math.ceil(
-                        (result.tabel_angsuran?.length || 0) / itemsPerPage
-                      )}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        setCurrentPage((prev) =>
-                          Math.min(
-                            prev + 1,
-                            Math.ceil(
-                              result.tabel_angsuran.length / itemsPerPage
+                  {/* Pagination */}
+                  <div className="flex items-center justify-between mt-4">
+                    <p className="text-sm text-gray-500">
+                      Menampilkan {(currentPage - 1) * itemsPerPage + 1} -{" "}
+                      {Math.min(
+                        currentPage * itemsPerPage,
+                        result.tabel_angsuran.length
+                      )}{" "}
+                      dari {result.tabel_angsuran?.length || 0} bulan
+                    </p>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setCurrentPage((prev) => Math.max(prev - 1, 1))
+                        }
+                        disabled={currentPage === 1}
+                      >
+                        Sebelumnya
+                      </Button>
+                      <span className="text-sm text-gray-600">
+                        Halaman {currentPage} dari{" "}
+                        {Math.ceil(
+                          (result.tabel_angsuran?.length || 0) / itemsPerPage
+                        )}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setCurrentPage((prev) =>
+                            Math.min(
+                              prev + 1,
+                              Math.ceil(
+                                result.tabel_angsuran.length / itemsPerPage
+                              )
                             )
                           )
-                        )
-                      }
-                      disabled={
-                        currentPage ===
-                        Math.ceil(
-                          (result.tabel_angsuran?.length || 0) / itemsPerPage
-                        )
-                      }
-                    >
-                      Selanjutnya
-                    </Button>
+                        }
+                        disabled={
+                          currentPage ===
+                          Math.ceil(
+                            (result.tabel_angsuran?.length || 0) / itemsPerPage
+                          )
+                        }
+                      >
+                        Selanjutnya
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
+          {/* Similar simplified results for other calculators */}
           {activeCalculator === "emergency" &&
             (result?.tabungan_bulanan_diperlukan ||
               result?.dana_darurat_minimum) && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  {result?.tabungan_bulanan_diperlukan ? (
-                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                      <p className="text-sm text-blue-600 font-medium">
-                        Tabungan Bulanan Diperlukan
-                      </p>
-                      <p className="text-xl font-bold text-blue-800">
-                        {formatCurrency(result.tabungan_bulanan_diperlukan)}
-                      </p>
-                    </div>
-                  ) : result?.dana_darurat_minimum ? (
-                    <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                      <p className="text-sm text-orange-600 font-medium">
-                        Dana Darurat Minimum
-                      </p>
-                      <p className="text-xl font-bold text-orange-800">
-                        {formatCurrency(result.dana_darurat_minimum)}
-                      </p>
-                    </div>
-                  ) : null}
-
-                  {result?.target_dana_darurat ? (
-                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                      <p className="text-sm text-green-600 font-medium">
-                        Target Dana Darurat
-                      </p>
-                      <p className="text-xl font-bold text-green-800">
-                        {formatCurrency(result.target_dana_darurat)}
-                      </p>
-                    </div>
-                  ) : result?.dana_darurat_ideal ? (
-                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                      <p className="text-sm text-green-600 font-medium">
-                        Dana Darurat Ideal
-                      </p>
-                      <p className="text-xl font-bold text-green-800">
-                        {formatCurrency(result.dana_darurat_ideal)}
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-
-                {result.skenario && (
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-gray-800">
-                      Skenario Dana Darurat
-                    </h4>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-red-50 p-3 rounded-lg border border-red-200">
-                        <p className="text-xs text-red-600 font-medium">
-                          Konservatif
-                        </p>
-                        <p className="text-sm font-bold text-red-800">
-                          {formatCurrency(
-                            result.skenario.konservatif.target_nominal
-                          )}
-                        </p>
-                        <p className="text-xs text-red-600">
-                          {result.skenario.konservatif.jumlah_bulan} bulan
-                        </p>
-                      </div>
-                      <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                        <p className="text-xs text-yellow-600 font-medium">
-                          Moderat
-                        </p>
-                        <p className="text-sm font-bold text-yellow-800">
-                          {formatCurrency(
-                            result.skenario.moderat.target_nominal
-                          )}
-                        </p>
-                        <p className="text-xs text-yellow-600">
-                          {result.skenario.moderat.jumlah_bulan} bulan
-                        </p>
-                      </div>
-                      <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
-                        <p className="text-xs text-purple-600 font-medium">
-                          Agresif
-                        </p>
-                        <p className="text-sm font-bold text-purple-800">
-                          {formatCurrency(
-                            result.skenario.agresif.target_nominal
-                          )}
-                        </p>
-                        <p className="text-xs text-purple-600">
-                          {result.skenario.agresif.jumlah_bulan} bulan
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {result.rekomendasi_instrumen && (
-                  <div className="space-y-2">
-                    <h4 className="font-semibold text-gray-800">
-                      Rekomendasi Instrumen
-                    </h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {result.rekomendasi_instrumen.map(
-                        (instrumen: any, index: any) => (
-                          <div
-                            key={index}
-                            className="bg-gray-50 p-2 rounded border text-sm text-gray-700"
-                          >
-                            {instrumen}
-                          </div>
-                        )
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {result.rekomendasi && (
-                  <div className="bg-blue-50 p-3 rounded-lg">
-                    <p className="text-sm text-blue-800">
-                      {result.rekomendasi}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    <p className="text-xs text-blue-600 font-medium">
+                      Tabungan Bulanan
+                    </p>
+                    <p className="text-lg font-bold text-blue-800">
+                      {formatCurrency(result.tabungan_bulanan_diperlukan || 0)}
                     </p>
                   </div>
-                )}
+                  <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                    <p className="text-xs text-green-600 font-medium">
+                      Target Dana Darurat
+                    </p>
+                    <p className="text-lg font-bold text-green-800">
+                      {formatCurrency(result.target_dana_darurat || 0)}
+                    </p>
+                  </div>
+                </div>
 
-                {/* Save/Load Buttons */}
-                <div className="flex gap-2 mt-4">
-                  <Dialog
-                    open={showSaveDialog}
-                    onOpenChange={setShowSaveDialog}
-                  >
-                    <DialogTrigger asChild>
-                      <Button className="flex-1">
-                        <Save className="h-4 w-4 mr-2" />
-                        Simpan Perhitungan
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Simpan Perhitungan</DialogTitle>
-                        <DialogDescription>
-                          Berikan nama untuk perhitungan ini agar mudah
-                          ditemukan nanti
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="save-name">Nama Perhitungan</Label>
+                {!isLoadedFromHistory && (
+                  <>
+                    <Button
+                      className="w-full"
+                      onClick={() => setShowSaveDialog(true)}
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      Simpan Perhitungan
+                    </Button>
+                    <ResponsiveDialog
+                      open={showSaveDialog}
+                      onOpenChange={setShowSaveDialog}
+                      title="Simpan Perhitungan"
+                      description="Berikan nama untuk perhitungan dana darurat ini"
+                    >
+                      <div className="space-y-6 p-1">
+                        <div className="space-y-2">
+                          <Label htmlFor="save-name" className="text-sm font-medium">
+                            Nama Perhitungan
+                          </Label>
                           <Input
                             id="save-name"
                             value={saveName}
                             onChange={(e) => setSaveName(e.target.value)}
                             placeholder="Contoh: Dana Darurat Keluarga"
+                            className="w-full"
+                            autoFocus
                           />
+                          <p className="text-xs text-gray-500">
+                            Gunakan nama yang mudah diingat untuk perhitungan ini
+                          </p>
                         </div>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => setShowSaveDialog(false)}
+                        <ResponsiveDialogActions>
+                          <ResponsiveDialogButton
                             variant="outline"
-                            className="flex-1"
+                            onClick={() => {
+                              setShowSaveDialog(false);
+                              setSaveName("");
+                            }}
                           >
                             Batal
-                          </Button>
-                          <Button
+                          </ResponsiveDialogButton>
+                          <ResponsiveDialogButton
                             onClick={handleSaveCalculation}
                             disabled={!saveName.trim()}
-                            className="flex-1"
                           >
+                            <Save className="h-4 w-4 mr-2" />
                             Simpan
-                          </Button>
-                        </div>
+                          </ResponsiveDialogButton>
+                        </ResponsiveDialogActions>
                       </div>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Dialog
-                    open={showHistoryDialog}
-                    onOpenChange={(open) => {
-                      setShowHistoryDialog(open);
-                      if (open) loadSavedCalculations();
-                    }}
-                  >
-                    <DialogTrigger asChild>
-                      <Button variant="outline">
-                        <History className="h-4 w-4 mr-2" />
-                        Riwayat
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-4xl">
-                      <DialogHeader>
-                        <DialogTitle>Riwayat Perhitungan</DialogTitle>
-                        <DialogDescription>
-                          Pilih perhitungan yang ingin dimuat kembali
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="max-h-96 overflow-y-auto">
-                        {savedCalculations.length === 0 ? (
-                          <p className="text-center text-gray-500 py-8">
-                            Belum ada perhitungan tersimpan
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {savedCalculations.map(renderHistoryItem)}
-                          </div>
-                        )}
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+                    </ResponsiveDialog>
+                  </>
+                )}
               </div>
             )}
 
           {activeCalculator === "retirement" &&
-            ("target_dana_pensiun" in result ||
-              "dana_pensiun_dibutuhkan" in result) && (
+            result?.tabungan_bulanan_diperlukan && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                    <p className="text-sm text-purple-600 font-medium">
-                      Target Dana Pensiun
-                    </p>
-                    <p className="text-xl font-bold text-purple-800">
-                      {formatCurrency(
-                        result.target_dana_pensiun ||
-                          result.dana_pensiun_dibutuhkan ||
-                          0
-                      )}
-                    </p>
-                  </div>
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <p className="text-sm text-blue-600 font-medium">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    <p className="text-xs text-blue-600 font-medium">
                       Tabungan Bulanan
                     </p>
-                    <p className="text-xl font-bold text-blue-800">
-                      {formatCurrency(
-                        result.tabungan_bulanan_diperlukan ||
-                          result.tabungan_bulanan_dibutuhkan ||
-                          0
-                      )}
+                    <p className="text-lg font-bold text-blue-800">
+                      {formatCurrency(result.tabungan_bulanan_diperlukan || 0)}
+                    </p>
+                  </div>
+                  <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                    <p className="text-xs text-green-600 font-medium">
+                      Total Dana Pensiun
+                    </p>
+                    <p className="text-lg font-bold text-green-800">
+                      {formatCurrency(result.total_dana_pensiun_dibutuhkan || 0)}
                     </p>
                   </div>
                 </div>
 
-                {result.tahun_menabung && (
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <p className="text-sm text-green-600 font-medium">
-                      Periode Menabung
-                    </p>
-                    <p className="text-xl font-bold text-green-800">
-                      {result.tahun_menabung} tahun
-                    </p>
-                  </div>
-                )}
-
-                {result.rekomendasi_investasi && (
-                  <div className="space-y-2">
-                    <h4 className="font-semibold text-gray-800">
-                      Rekomendasi Investasi
-                    </h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {result.rekomendasi_investasi.map(
-                        (investasi: any, index: any) => (
-                          <div
-                            key={index}
-                            className="bg-gray-50 p-2 rounded border text-sm text-gray-700"
-                          >
-                            {investasi}
-                          </div>
-                        )
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {result.proyeksi_tahunan && (
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-gray-800">
-                      Proyeksi 10 Tahun Pertama
-                    </h4>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm border-collapse border border-gray-300">
-                        <thead>
-                          <tr className="bg-gray-50">
-                            <th className="border border-gray-300 px-3 py-2 text-left">
-                              Tahun
-                            </th>
-                            <th className="border border-gray-300 px-3 py-2 text-left">
-                              Usia
-                            </th>
-                            <th className="border border-gray-300 px-3 py-2 text-right">
-                              Kontribusi
-                            </th>
-                            <th className="border border-gray-300 px-3 py-2 text-right">
-                              Nilai Investasi
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {result.proyeksi_tahunan
-                            .slice(0, 10)
-                            .map((proyeksi: any) => (
-                              <tr
-                                key={proyeksi.tahun}
-                                className="hover:bg-gray-50"
-                              >
-                                <td className="border border-gray-300 px-3 py-2">
-                                  {proyeksi.tahun}
-                                </td>
-                                <td className="border border-gray-300 px-3 py-2">
-                                  {proyeksi.usia}
-                                </td>
-                                <td className="border border-gray-300 px-3 py-2 text-right">
-                                  {formatCurrency(proyeksi.kontribusi_tahunan)}
-                                </td>
-                                <td className="border border-gray-300 px-3 py-2 text-right font-semibold">
-                                  {formatCurrency(proyeksi.nilai_investasi)}
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {result.strategi_investasi && (
-                  <div className="bg-purple-50 p-3 rounded-lg">
-                    <p className="text-sm text-purple-800">
-                      {result.strategi_investasi}
-                    </p>
-                  </div>
-                )}
-
-                {/* Save/Load Buttons */}
-                <div className="flex gap-2 mt-4">
-                  <Dialog
-                    open={showSaveDialog}
-                    onOpenChange={setShowSaveDialog}
-                  >
-                    <DialogTrigger asChild>
-                      <Button className="flex-1">
-                        <Save className="h-4 w-4 mr-2" />
-                        Simpan Perhitungan
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Simpan Perhitungan</DialogTitle>
-                        <DialogDescription>
-                          Berikan nama untuk perhitungan ini agar mudah
-                          ditemukan nanti
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="save-name">Nama Perhitungan</Label>
+                {!isLoadedFromHistory && (
+                  <>
+                    <Button
+                      className="w-full"
+                      onClick={() => setShowSaveDialog(true)}
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      Simpan Perhitungan
+                    </Button>
+                    <ResponsiveDialog
+                      open={showSaveDialog}
+                      onOpenChange={setShowSaveDialog}
+                      title="Simpan Perhitungan"
+                      description="Berikan nama untuk rencana pensiun ini"
+                    >
+                      <div className="space-y-6 p-1">
+                        <div className="space-y-2">
+                          <Label htmlFor="save-name" className="text-sm font-medium">
+                            Nama Perhitungan
+                          </Label>
                           <Input
                             id="save-name"
                             value={saveName}
                             onChange={(e) => setSaveName(e.target.value)}
-                            placeholder="Contoh: Dana Darurat Keluarga"
+                            placeholder="Contoh: Rencana Pensiun 2050"
+                            className="w-full"
+                            autoFocus
                           />
+                          <p className="text-xs text-gray-500">
+                            Gunakan nama yang mudah diingat untuk perhitungan ini
+                          </p>
                         </div>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => setShowSaveDialog(false)}
+                        <ResponsiveDialogActions>
+                          <ResponsiveDialogButton
                             variant="outline"
-                            className="flex-1"
+                            onClick={() => {
+                              setShowSaveDialog(false);
+                              setSaveName("");
+                            }}
                           >
                             Batal
-                          </Button>
-                          <Button
+                          </ResponsiveDialogButton>
+                          <ResponsiveDialogButton
                             onClick={handleSaveCalculation}
                             disabled={!saveName.trim()}
-                            className="flex-1"
                           >
+                            <Save className="h-4 w-4 mr-2" />
                             Simpan
-                          </Button>
-                        </div>
+                          </ResponsiveDialogButton>
+                        </ResponsiveDialogActions>
                       </div>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Dialog
-                    open={showHistoryDialog}
-                    onOpenChange={(open) => {
-                      setShowHistoryDialog(open);
-                      if (open) loadSavedCalculations();
-                    }}
-                  >
-                    <DialogTrigger asChild>
-                      <Button variant="outline">
-                        <History className="h-4 w-4 mr-2" />
-                        Riwayat
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-4xl">
-                      <DialogHeader>
-                        <DialogTitle>Riwayat Perhitungan</DialogTitle>
-                        <DialogDescription>
-                          Pilih perhitungan yang ingin dimuat kembali
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="max-h-96 overflow-y-auto">
-                        {savedCalculations.length === 0 ? (
-                          <p className="text-center text-gray-500 py-8">
-                            Belum ada perhitungan tersimpan
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {savedCalculations.map(renderHistoryItem)}
-                          </div>
-                        )}
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+                    </ResponsiveDialog>
+                  </>
+                )}
               </div>
             )}
 
           {activeCalculator === "custom" &&
-            ("tabungan_bulanan_diperlukan" in result ||
-              "kontribusi_bulanan_dibutuhkan" in result) && (
+            result?.kontribusi_bulanan_dibutuhkan && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <p className="text-sm text-blue-600 font-medium">
-                      Tabungan Bulanan Diperlukan
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    <p className="text-xs text-blue-600 font-medium">
+                      Kontribusi Bulanan
                     </p>
-                    <p className="text-xl font-bold text-blue-800">
-                      {formatCurrency(
-                        result.tabungan_bulanan_diperlukan ||
-                          result.kontribusi_bulanan_dibutuhkan ||
-                          0
-                      )}
+                    <p className="text-lg font-bold text-blue-800">
+                      {formatCurrency(result.kontribusi_bulanan_dibutuhkan || 0)}
                     </p>
                   </div>
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <p className="text-sm text-green-600 font-medium">
-                      Bulan Tersisa
+                  <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                    <p className="text-xs text-green-600 font-medium">
+                      Target Nominal
                     </p>
-                    <p className="text-xl font-bold text-green-800">
-                      {result.bulan_tersisa || 0} bulan
+                    <p className="text-lg font-bold text-green-800">
+                      {formatCurrency(result.target_nominal || 0)}
                     </p>
                   </div>
                 </div>
 
-                {result.skenario && (
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-gray-800">
-                      Skenario Tabungan
-                    </h4>
-                    <div className="space-y-2">
-                      {result.skenario.map((skenario: any, index: any) => (
-                        <div
-                          key={index}
-                          className="bg-gray-50 p-3 rounded-lg border"
-                        >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-medium text-gray-800">
-                                {skenario.jenis}
-                              </p>
-                              <p className="text-sm text-gray-600">
-                                Kemungkinan: {skenario.kemungkinan_tercapai}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm text-gray-600">
-                                Tabungan/bulan:
-                              </p>
-                              <p className="font-semibold">
-                                {formatCurrency(skenario.tabungan_bulanan)}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                            <div>
-                              <span className="text-gray-500">
-                                Total Kontribusi:{" "}
-                              </span>
-                              <span className="font-medium">
-                                {formatCurrency(skenario.total_kontribusi)}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-gray-500">
-                                Return Investasi:{" "}
-                              </span>
-                              <span className="font-medium text-green-600">
-                                {formatCurrency(skenario.return_investasi)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {result.milestone && (
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-gray-800">
-                      Milestone Pencapaian
-                    </h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {result.milestone.map((milestone: any, index: any) => (
-                        <div
-                          key={index}
-                          className="bg-purple-50 p-3 rounded-lg border border-purple-200"
-                        >
-                          <p className="text-sm text-purple-600 font-medium">
-                            {milestone.target_tercapai_persen}% Target
-                          </p>
-                          <p className="text-lg font-bold text-purple-800">
-                            {formatCurrency(milestone.nominal_tercapai)}
-                          </p>
-                          <p className="text-xs text-purple-600">
-                            Bulan ke-{milestone.bulan}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Save Button */}
-                <div className="flex gap-2">
-                  <Dialog
-                    open={showSaveDialog}
-                    onOpenChange={setShowSaveDialog}
-                  >
-                    <DialogTrigger asChild>
-                      <Button className="flex-1">
-                        <Save className="h-4 w-4 mr-2" />
-                        Simpan Perhitungan
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Simpan Perhitungan</DialogTitle>
-                        <DialogDescription>
-                          Berikan nama untuk perhitungan ini agar mudah
-                          ditemukan nanti
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="save-name">Nama Perhitungan</Label>
+                {!isLoadedFromHistory && (
+                  <>
+                    <Button
+                      className="w-full"
+                      onClick={() => setShowSaveDialog(true)}
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      Simpan Perhitungan
+                    </Button>
+                    <ResponsiveDialog
+                      open={showSaveDialog}
+                      onOpenChange={setShowSaveDialog}
+                      title="Simpan Perhitungan"
+                      description="Berikan nama untuk tujuan keuangan ini"
+                    >
+                      <div className="space-y-6 p-1">
+                        <div className="space-y-2">
+                          <Label htmlFor="save-name" className="text-sm font-medium">
+                            Nama Perhitungan
+                          </Label>
                           <Input
                             id="save-name"
                             value={saveName}
                             onChange={(e) => setSaveName(e.target.value)}
-                            placeholder="Contoh: Rumah Impian Jakarta"
+                            placeholder="Contoh: Beli Mobil Impian"
+                            className="w-full"
+                            autoFocus
                           />
+                          <p className="text-xs text-gray-500">
+                            Gunakan nama yang mudah diingat untuk perhitungan ini
+                          </p>
                         </div>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => setShowSaveDialog(false)}
+                        <ResponsiveDialogActions>
+                          <ResponsiveDialogButton
                             variant="outline"
-                            className="flex-1"
+                            onClick={() => {
+                              setShowSaveDialog(false);
+                              setSaveName("");
+                            }}
                           >
                             Batal
-                          </Button>
-                          <Button
+                          </ResponsiveDialogButton>
+                          <ResponsiveDialogButton
                             onClick={handleSaveCalculation}
                             disabled={!saveName.trim()}
-                            className="flex-1"
                           >
+                            <Save className="h-4 w-4 mr-2" />
                             Simpan
-                          </Button>
-                        </div>
+                          </ResponsiveDialogButton>
+                        </ResponsiveDialogActions>
                       </div>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Dialog
-                    open={showHistoryDialog}
-                    onOpenChange={(open) => {
-                      setShowHistoryDialog(open);
-                      if (open) loadSavedCalculations(activeCalculator);
-                    }}
-                  >
-                    <DialogTrigger asChild>
-                      <Button variant="outline">
-                        <History className="h-4 w-4 mr-2" />
-                        Riwayat
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-4xl">
-                      <DialogHeader>
-                        <DialogTitle>Riwayat Perhitungan</DialogTitle>
-                        <DialogDescription>
-                          Pilih perhitungan yang ingin dimuat kembali
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="max-h-96 overflow-y-auto">
-                        {savedCalculations.length === 0 ? (
-                          <p className="text-center text-gray-500 py-8">
-                            Belum ada perhitungan tersimpan
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {savedCalculations.map(renderHistoryItem)}
-                          </div>
-                        )}
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+                    </ResponsiveDialog>
+                  </>
+                )}
               </div>
             )}
         </CardContent>
@@ -1940,7 +1489,6 @@ export default function CalculatorsPage() {
     );
   };
 
-  // Load saved calculations when calculator changes
   React.useEffect(() => {
     if (activeCalculator && currentTenant) {
       loadSavedCalculations(activeCalculator);
@@ -1952,8 +1500,8 @@ export default function CalculatorsPage() {
     if (!calculator) return null;
 
     return (
-      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto space-y-6">
+      <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
+        <div className="max-w-7xl mx-auto space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <Button
               variant="outline"
@@ -1963,19 +1511,17 @@ export default function CalculatorsPage() {
               ← Kembali
             </Button>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
                 {calculator.title}
               </h1>
-              <p className="text-gray-600 text-sm sm:text-base">
-                {calculator.description}
-              </p>
+              <p className="text-gray-600 text-sm">{calculator.description}</p>
             </div>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
+          <div className="grid lg:grid-cols-3 gap-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Input Data</CardTitle>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg">Input Data</CardTitle>
                 <CardDescription>
                   Masukkan data untuk perhitungan
                 </CardDescription>
@@ -1988,45 +1534,35 @@ export default function CalculatorsPage() {
               </CardContent>
             </Card>
 
-            <div className="space-y-6">
+            <div className="lg:col-span-2 space-y-4">
               {renderResult()}
 
-              {/* History Section */}
               <Card>
-                <CardHeader>
-                  <CardTitle>Riwayat Perhitungan</CardTitle>
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg">Riwayat Perhitungan</CardTitle>
                   <CardDescription>
                     Perhitungan yang pernah disimpan
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
-                    {savedCalculations
-                      .filter(
-                        (calc) => calc.tipe_kalkulator === activeCalculator
-                      )
-                      .slice(0, 5)
-                      .map(renderHistoryItem)}
-                    {savedCalculations.filter(
-                      (calc) => calc.tipe_kalkulator === activeCalculator
-                    ).length === 0 && (
-                      <p className="text-center text-gray-500 py-4">
-                        Belum ada perhitungan tersimpan
-                      </p>
-                    )}
-                    {savedCalculations.filter(
-                      (calc) => calc.tipe_kalkulator === activeCalculator
-                    ).length > 5 && (
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => {
-                          setShowHistoryDialog(true);
-                          loadSavedCalculations(activeCalculator);
-                        }}
-                      >
-                        Lihat Semua Riwayat
-                      </Button>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {isLoadingHistory ? (
+                      <HistoryListSkeleton count={4} type="calculator" />
+                    ) : (
+                      <>
+                        {savedCalculations
+                          .filter(
+                            (calc) => calc.tipe_kalkulator === activeCalculator
+                          )
+                          .map(renderHistoryItem)}
+                        {savedCalculations.filter(
+                          (calc) => calc.tipe_kalkulator === activeCalculator
+                        ).length === 0 && (
+                          <p className="text-center text-gray-500 py-8 text-sm">
+                            Belum ada perhitungan tersimpan
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 </CardContent>
@@ -2035,48 +1571,51 @@ export default function CalculatorsPage() {
           </div>
         </div>
 
-        {/* Edit Dialog */}
-        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Perhitungan</DialogTitle>
-              <DialogDescription>Ubah nama perhitungan</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="edit-name">Nama Perhitungan</Label>
-                <Input
-                  id="edit-name"
-                  value={saveName}
-                  onChange={(e) => setSaveName(e.target.value)}
-                  placeholder="Masukkan nama baru"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => {
-                    setShowEditDialog(false);
-                    setEditingCalculation(null);
-                    setSaveName("");
-                  }}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  Batal
-                </Button>
-                <Button
-                  onClick={updateSavedCalculation}
-                  disabled={!saveName.trim()}
-                  className="flex-1"
-                >
-                  Simpan
-                </Button>
-              </div>
+        <ResponsiveDialog
+          open={showEditDialog}
+          onOpenChange={setShowEditDialog}
+          title="Edit Perhitungan"
+          description="Ubah nama perhitungan yang tersimpan"
+        >
+          <div className="space-y-6 p-1">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name" className="text-sm font-medium">
+                Nama Perhitungan
+              </Label>
+              <Input
+                id="edit-name"
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                placeholder="Masukkan nama baru"
+                className="w-full"
+                autoFocus
+              />
+              <p className="text-xs text-gray-500">
+                Nama baru akan menggantikan nama sebelumnya
+              </p>
             </div>
-          </DialogContent>
-        </Dialog>
+            <ResponsiveDialogActions>
+              <ResponsiveDialogButton
+                variant="outline"
+                onClick={() => {
+                  setShowEditDialog(false);
+                  setEditingCalculation(null);
+                  setSaveName("");
+                }}
+              >
+                Batal
+              </ResponsiveDialogButton>
+              <ResponsiveDialogButton
+                onClick={updateSavedCalculation}
+                disabled={!saveName.trim()}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Simpan Perubahan
+              </ResponsiveDialogButton>
+            </ResponsiveDialogActions>
+          </div>
+        </ResponsiveDialog>
 
-        {/* Delete Confirmation Dialog */}
         <ConfirmDialog
           open={deleteDialog.open}
           onOpenChange={(open) => setDeleteDialog({ open, calculation: null })}
@@ -2097,22 +1636,22 @@ export default function CalculatorsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
+      <div className="max-w-6xl mx-auto space-y-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
             Kalkulator Keuangan
           </h1>
-          <p className="text-gray-600 text-sm sm:text-base">
+          <p className="text-gray-600">
             Alat bantu untuk perencanaan keuangan Anda
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {calculators.map((calc) => (
             <Card
               key={calc.id}
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+              className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
               onClick={() => setActiveCalculator(calc.id)}
             >
               <CardHeader>
@@ -2122,7 +1661,9 @@ export default function CalculatorsPage() {
                   </div>
                   <div className="flex-1">
                     <CardTitle className="text-lg">{calc.title}</CardTitle>
-                    <CardDescription>{calc.description}</CardDescription>
+                    <CardDescription className="text-sm">
+                      {calc.description}
+                    </CardDescription>
                   </div>
                   <ArrowRight className="h-5 w-5 text-gray-400" />
                 </div>

@@ -25,22 +25,22 @@ import {
 } from "@/components/ui/ResponsiveDialog";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  Plus,
-  Edit,
-  Trash2,
-  Target,
-  Calendar,
-  DollarSign,
-} from "lucide-react";
+import { Plus, Edit, Trash2, Target, Calendar, DollarSign } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import apiClient from "@/lib/api-client";
-import { GoalCardSkeleton } from "@/components/ui/skeletons";
+import { GoalCardSkeleton, HistoryListSkeleton } from "@/components/ui/skeletons";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { formatCurrency } from "@/lib/format";
 
-type GoalType = "dana_darurat" | "rumah" | "kendaraan" | "liburan" | "pendidikan" | "pensiun" | "lainnya";
+type GoalType =
+  | "dana_darurat"
+  | "rumah"
+  | "kendaraan"
+  | "liburan"
+  | "pendidikan"
+  | "pensiun"
+  | "lainnya";
 
 interface Goal {
   id: string;
@@ -58,8 +58,12 @@ interface Contribution {
   id: string;
   tujuan_tabungan_id: string;
   transaksi_id: string;
+  akun_id?: string;
   nominal_kontribusi: number;
   tanggal_kontribusi: string;
+  catatan?: string;
+  nama_akun?: string;
+  source_type?: string;
 }
 
 interface GoalFormData {
@@ -71,9 +75,17 @@ interface GoalFormData {
 }
 
 interface ContributionFormData {
+  akun_id: string;
   nominal: number;
   tanggal_kontribusi: string;
   catatan: string;
+}
+
+interface Account {
+  id: string;
+  nama_akun: string;
+  saldo_terkini: number;
+  jenis: string;
 }
 
 interface GoalTypeOption {
@@ -101,6 +113,7 @@ const INITIAL_GOAL_FORM: GoalFormData = {
 };
 
 const getInitialContributionForm = (): ContributionFormData => ({
+  akun_id: "",
   nominal: 0,
   tanggal_kontribusi: new Date().toISOString().split("T")[0],
   catatan: "",
@@ -109,21 +122,28 @@ const getInitialContributionForm = (): ContributionFormData => ({
 export default function GoalsPage(): JSX.Element {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [contributions, setContributions] = useState<Contribution[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingContributions, setIsLoadingContributions] = useState(false);
   const [isGoalDialogOpen, setIsGoalDialogOpen] = useState(false);
-  const [isContributionDialogOpen, setIsContributionDialogOpen] = useState(false);
+  const [isContributionDialogOpen, setIsContributionDialogOpen] =
+    useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; goal: Goal | null }>({
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    goal: Goal | null;
+  }>({
     open: false,
     goal: null,
   });
 
-  const [goalFormData, setGoalFormData] = useState<GoalFormData>(INITIAL_GOAL_FORM);
-  const [contributionFormData, setContributionFormData] = useState<ContributionFormData>(
-    getInitialContributionForm()
-  );
+  const [goalFormData, setGoalFormData] =
+    useState<GoalFormData>(INITIAL_GOAL_FORM);
+  const [contributionFormData, setContributionFormData] =
+    useState<ContributionFormData>(getInitialContributionForm());
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
 
   const { currentTenant } = useTenant();
   const { toast } = useToast();
@@ -133,7 +153,9 @@ export default function GoalsPage(): JSX.Element {
 
     try {
       setIsLoading(true);
-      const response = await apiClient.tujuan.list({ tenant_id: currentTenant });
+      const response = await apiClient.tujuan.list({
+        tenant_id: currentTenant,
+      });
       const goalsData = response?.tujuan || response || [];
       setGoals(Array.isArray(goalsData) ? goalsData : []);
     } catch (error) {
@@ -141,7 +163,10 @@ export default function GoalsPage(): JSX.Element {
       setGoals([]);
       toast({
         title: "Gagal memuat tujuan",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan saat memuat data tujuan",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat memuat data tujuan",
         variant: "destructive",
       });
     } finally {
@@ -149,27 +174,65 @@ export default function GoalsPage(): JSX.Element {
     }
   }, [currentTenant, toast]);
 
-  const loadContributions = useCallback(async (goalId: string): Promise<void> => {
+  const loadContributions = useCallback(
+    async (goalId: string): Promise<void> => {
+      try {
+        setIsLoadingContributions(true);
+        const response = await apiClient.tujuan.listKontribusi({
+          tujuan_id: goalId,
+        });
+        const contributionsData = response?.kontribusi || [];
+        setContributions(
+          Array.isArray(contributionsData) ? contributionsData : []
+        );
+      } catch (error) {
+        console.error("Failed to load contributions:", error);
+        setContributions([]);
+        toast({
+          title: "Gagal memuat kontribusi",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Terjadi kesalahan saat memuat data kontribusi",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingContributions(false);
+      }
+    },
+    [toast]
+  );
+
+  const loadAccounts = useCallback(async (): Promise<void> => {
+    if (!currentTenant) return;
+
     try {
-      const response = await apiClient.tujuan.listKontribusi({ tujuan_id: goalId });
-      const contributionsData = response?.kontribusi || [];
-      setContributions(Array.isArray(contributionsData) ? contributionsData : []);
+      setIsLoadingAccounts(true);
+      const response = await apiClient.akun.list({ tenant_id: currentTenant });
+      const accountsData = response?.akun || [];
+      setAccounts(Array.isArray(accountsData) ? accountsData : []);
     } catch (error) {
-      console.error("Failed to load contributions:", error);
-      setContributions([]);
+      console.error("Failed to load accounts:", error);
+      setAccounts([]);
       toast({
-        title: "Gagal memuat kontribusi",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan saat memuat data kontribusi",
+        title: "Gagal memuat akun",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat memuat data akun",
         variant: "destructive",
       });
+    } finally {
+      setIsLoadingAccounts(false);
     }
-  }, [toast]);
+  }, [currentTenant, toast]);
 
   useEffect(() => {
     if (currentTenant) {
       loadGoals();
+      loadAccounts();
     }
-  }, [loadGoals]);
+  }, [loadGoals, loadAccounts]);
 
   const handleSubmitGoal = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
@@ -190,7 +253,10 @@ export default function GoalsPage(): JSX.Element {
           description: "Data tujuan telah disimpan",
         });
       } else {
-        await apiClient.tujuan.create({ tenant_id: currentTenant, ...submitData });
+        await apiClient.tujuan.create({
+          tenant_id: currentTenant,
+          ...submitData,
+        });
         toast({
           title: "Tujuan berhasil ditambahkan",
           description: "Tujuan baru telah dibuat",
@@ -203,8 +269,13 @@ export default function GoalsPage(): JSX.Element {
     } catch (error) {
       console.error("Failed to save goal:", error);
       toast({
-        title: editingGoal ? "Gagal memperbarui tujuan" : "Gagal menambah tujuan",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan saat menyimpan data",
+        title: editingGoal
+          ? "Gagal memperbarui tujuan"
+          : "Gagal menambah tujuan",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat menyimpan data",
         variant: "destructive",
       });
     } finally {
@@ -212,42 +283,40 @@ export default function GoalsPage(): JSX.Element {
     }
   };
 
-  const handleSubmitContribution = async (e: React.FormEvent): Promise<void> => {
+  const handleSubmitContribution = async (
+    e: React.FormEvent
+  ): Promise<void> => {
     e.preventDefault();
-    if (!selectedGoal) return;
+    if (!selectedGoal || !contributionFormData.akun_id) return;
 
     setIsSubmitting(true);
     try {
-      // Generate a UUID for transaksi_id since it's required
-      const generateUUID = () => {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-          const r = Math.random() * 16 | 0;
-          const v = c === 'x' ? r : (r & 0x3 | 0x8);
-          return v.toString(16);
-        });
-      };
-
       await apiClient.tujuan.createKontribusi({
         tujuan_tabungan_id: selectedGoal.id,
-        transaksi_id: generateUUID(),
+        akun_id: contributionFormData.akun_id,
         nominal_kontribusi: contributionFormData.nominal,
         tanggal_kontribusi: contributionFormData.tanggal_kontribusi,
+        catatan: contributionFormData.catatan || undefined,
       });
 
       toast({
         title: "Kontribusi berhasil ditambahkan",
-        description: "Kontribusi telah dicatat",
+        description: "Kontribusi telah dicatat dan saldo akun diperbarui",
       });
 
       setIsContributionDialogOpen(false);
       resetContributionForm();
       await loadGoals();
       await loadContributions(selectedGoal.id);
+      await loadAccounts(); // Refresh account balances
     } catch (error) {
       console.error("Failed to add contribution:", error);
       toast({
         title: "Gagal menambah kontribusi",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan saat menambah kontribusi",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat menambah kontribusi",
         variant: "destructive",
       });
     } finally {
@@ -257,14 +326,15 @@ export default function GoalsPage(): JSX.Element {
 
   const handleEditGoal = (goal: Goal): void => {
     setEditingGoal(goal);
-    
+
     let dateValue = "";
     if (goal.tenggat_tanggal) {
-      dateValue = typeof goal.tenggat_tanggal === 'string' 
-        ? goal.tenggat_tanggal.split("T")[0] 
-        : new Date(goal.tenggat_tanggal).toISOString().split("T")[0];
+      dateValue =
+        typeof goal.tenggat_tanggal === "string"
+          ? goal.tenggat_tanggal.split("T")[0]
+          : new Date(goal.tenggat_tanggal).toISOString().split("T")[0];
     }
-    
+
     setGoalFormData({
       nama_tujuan: goal.nama_tujuan,
       jenis_tujuan: goal.jenis_tujuan,
@@ -290,7 +360,10 @@ export default function GoalsPage(): JSX.Element {
       console.error("Failed to delete goal:", error);
       toast({
         title: "Gagal menghapus tujuan",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan saat menghapus tujuan",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat menghapus tujuan",
         variant: "destructive",
       });
     }
@@ -299,6 +372,18 @@ export default function GoalsPage(): JSX.Element {
   const handleAddContribution = (goal: Goal): void => {
     setSelectedGoal(goal);
     setIsContributionDialogOpen(true);
+    loadContributions(goal.id);
+    if (accounts.length === 0) {
+      loadAccounts();
+    }
+  };
+
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+  const [historyGoal, setHistoryGoal] = useState<Goal | null>(null);
+
+  const handleShowHistory = (goal: Goal): void => {
+    setHistoryGoal(goal);
+    setShowHistoryDialog(true);
     loadContributions(goal.id);
   };
 
@@ -312,7 +397,9 @@ export default function GoalsPage(): JSX.Element {
   };
 
   const getGoalTypeInfo = (type: GoalType): GoalTypeOption => {
-    return goalTypes.find(t => t.value === type) || goalTypes[goalTypes.length - 1];
+    return (
+      goalTypes.find((t) => t.value === type) || goalTypes[goalTypes.length - 1]
+    );
   };
 
   const calculateProgress = (current: number, target: number): number => {
@@ -323,7 +410,9 @@ export default function GoalsPage(): JSX.Element {
 
   const safeFormatCurrency = (value: number | undefined | null): string => {
     const numValue = Number(value);
-    return Number.isFinite(numValue) ? formatCurrency(numValue) : formatCurrency(0);
+    return Number.isFinite(numValue)
+      ? formatCurrency(numValue)
+      : formatCurrency(0);
   };
 
   const getDaysRemaining = (deadline?: string): number | null => {
@@ -356,297 +445,622 @@ export default function GoalsPage(): JSX.Element {
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">Tujuan Tabungan</h1>
-            <p className="text-gray-600 text-sm sm:text-base truncate">Tetapkan dan capai tujuan keuangan Anda</p>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">
+              Tujuan Tabungan
+            </h1>
+            <p className="text-gray-600 text-sm sm:text-base truncate">
+              Tetapkan dan capai tujuan keuangan Anda
+            </p>
           </div>
+          <ResponsiveDialog
+            open={isGoalDialogOpen}
+            onOpenChange={handleDialogClose}
+            title={editingGoal ? "Edit Tujuan" : "Tambah Tujuan Baru"}
+            description={
+              editingGoal
+                ? "Perbarui informasi tujuan tabungan"
+                : "Buat tujuan tabungan baru"
+            }
+            size="md"
+          >
+            <ResponsiveDialogForm onSubmit={handleSubmitGoal}>
+              <div className="space-y-2">
+                <Label htmlFor="nama_tujuan">Nama Tujuan</Label>
+                <Input
+                  id="nama_tujuan"
+                  placeholder="Contoh: Liburan ke Bali"
+                  value={goalFormData.nama_tujuan}
+                  onChange={(e) =>
+                    setGoalFormData((prev) => ({
+                      ...prev,
+                      nama_tujuan: e.target.value,
+                    }))
+                  }
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="jenis_tujuan">Jenis Tujuan</Label>
+                <Select
+                  value={goalFormData.jenis_tujuan}
+                  onValueChange={(value: GoalType) =>
+                    setGoalFormData((prev) => ({
+                      ...prev,
+                      jenis_tujuan: value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih jenis tujuan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {goalTypes.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        <div className="flex items-center gap-2">
+                          <span>{type.icon}</span>
+                          {type.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="target_nominal">Target Nominal</Label>
+                <CurrencyInput
+                  value={goalFormData.target_nominal}
+                  onChange={(value) =>
+                    setGoalFormData((prev) => ({
+                      ...prev,
+                      target_nominal: value,
+                    }))
+                  }
+                  placeholder="Masukkan target nominal"
+                  required
+                  maxLength={12}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tenggat_tanggal">
+                  Tenggat Waktu (Opsional)
+                </Label>
+                <Input
+                  id="tenggat_tanggal"
+                  type="date"
+                  value={goalFormData.tenggat_tanggal}
+                  onChange={(e) =>
+                    setGoalFormData((prev) => ({
+                      ...prev,
+                      tenggat_tanggal: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="catatan">Catatan (Opsional)</Label>
+                <Input
+                  id="catatan"
+                  placeholder="Deskripsi tujuan"
+                  value={goalFormData.catatan}
+                  onChange={(e) =>
+                    setGoalFormData((prev) => ({
+                      ...prev,
+                      catatan: e.target.value.slice(0, 100),
+                    }))
+                  }
+                  maxLength={100}
+                />
+              </div>
+
+              <ResponsiveDialogActions>
+                <ResponsiveDialogButton
+                  variant="outline"
+                  onClick={() => setIsGoalDialogOpen(false)}
+                >
+                  Batal
+                </ResponsiveDialogButton>
+                <ResponsiveDialogButton type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                      Menyimpan...
+                    </>
+                  ) : editingGoal ? (
+                    "Perbarui"
+                  ) : (
+                    "Tambah"
+                  )}
+                </ResponsiveDialogButton>
+              </ResponsiveDialogActions>
+            </ResponsiveDialogForm>
+          </ResponsiveDialog>
+
+          <Button
+            className="w-full sm:w-auto"
+            onClick={() => setIsGoalDialogOpen(true)}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Tambah Tujuan
+          </Button>
+        </div>
+
         <ResponsiveDialog
-          open={isGoalDialogOpen}
-          onOpenChange={handleDialogClose}
-          title={editingGoal ? 'Edit Tujuan' : 'Tambah Tujuan Baru'}
-          description={editingGoal ? 'Perbarui informasi tujuan tabungan' : 'Buat tujuan tabungan baru'}
+          open={isContributionDialogOpen}
+          onOpenChange={handleContributionDialogClose}
+          title="Tambah Kontribusi"
+          description={`Tambahkan kontribusi untuk tujuan: ${selectedGoal?.nama_tujuan}`}
           size="md"
         >
-          <ResponsiveDialogForm onSubmit={handleSubmitGoal}>
+          <ResponsiveDialogForm onSubmit={handleSubmitContribution}>
             <div className="space-y-2">
-              <Label htmlFor="nama_tujuan">Nama Tujuan</Label>
-              <Input
-                id="nama_tujuan"
-                placeholder="Contoh: Liburan ke Bali"
-                value={goalFormData.nama_tujuan}
-                onChange={(e) => setGoalFormData(prev => ({ ...prev, nama_tujuan: e.target.value }))}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="jenis_tujuan">Jenis Tujuan</Label>
-              <Select value={goalFormData.jenis_tujuan} onValueChange={(value: GoalType) => setGoalFormData(prev => ({ ...prev, jenis_tujuan: value }))}>
+              <Label htmlFor="akun_id">Pilih Akun</Label>
+              <Select
+                value={contributionFormData.akun_id}
+                onValueChange={(value) =>
+                  setContributionFormData((prev) => ({
+                    ...prev,
+                    akun_id: value,
+                  }))
+                }
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Pilih jenis tujuan" />
+                  <SelectValue placeholder="Pilih akun untuk kontribusi" />
                 </SelectTrigger>
                 <SelectContent>
-                  {goalTypes.map(type => (
-                    <SelectItem key={type.value} value={type.value}>
-                      <div className="flex items-center gap-2">
-                        <span>{type.icon}</span>
-                        {type.label}
-                      </div>
-                    </SelectItem>
-                  ))}
+                  {accounts.map((account) => {
+                    return (
+                      <SelectItem key={account.id} value={account.id}>
+                        <div className="flex justify-between items-center w-full">
+                          <span>{account.nama_akun}</span>
+                          <span className="text-sm text-gray-600 ml-2">
+                            {safeFormatCurrency(account.saldo_terkini)}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
+              {isLoadingAccounts && (
+                <p className="text-xs text-gray-500">Memuat akun...</p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="target_nominal">Target Nominal</Label>
+              <Label htmlFor="contribution_nominal">Nominal Kontribusi</Label>
               <CurrencyInput
-                value={goalFormData.target_nominal}
-                onChange={(value) => setGoalFormData(prev => ({ ...prev, target_nominal: value }))}
-                placeholder="Masukkan target nominal"
+                value={contributionFormData.nominal}
+                onChange={(value) =>
+                  setContributionFormData((prev) => ({
+                    ...prev,
+                    nominal: value,
+                  }))
+                }
+                placeholder="Masukkan nominal kontribusi"
                 required
                 maxLength={12}
               />
+              {contributionFormData.akun_id &&
+                contributionFormData.nominal > 0 &&
+                (() => {
+                  const selectedAccount = accounts.find(
+                    (a) => a.id === contributionFormData.akun_id
+                  );
+                  if (
+                    selectedAccount &&
+                    selectedAccount.saldo_terkini < contributionFormData.nominal
+                  ) {
+                    return (
+                      <p className="text-xs text-red-500">
+                        Saldo tidak mencukupi. Saldo tersedia:{" "}
+                        {safeFormatCurrency(selectedAccount.saldo_terkini)}
+                      </p>
+                    );
+                  }
+                  return null;
+                })()}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="tenggat_tanggal">Tenggat Waktu (Opsional)</Label>
+              <Label htmlFor="tanggal_kontribusi">Tanggal Kontribusi</Label>
               <Input
-                id="tenggat_tanggal"
+                id="tanggal_kontribusi"
                 type="date"
-                value={goalFormData.tenggat_tanggal}
-                onChange={(e) => setGoalFormData(prev => ({ ...prev, tenggat_tanggal: e.target.value }))}
+                value={contributionFormData.tanggal_kontribusi}
+                onChange={(e) =>
+                  setContributionFormData((prev) => ({
+                    ...prev,
+                    tanggal_kontribusi: e.target.value,
+                  }))
+                }
+                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="catatan">Catatan (Opsional)</Label>
+              <Label htmlFor="contribution_catatan">Catatan (Opsional)</Label>
               <Input
-                id="catatan"
-                placeholder="Deskripsi tujuan"
-                value={goalFormData.catatan}
-                onChange={(e) => setGoalFormData(prev => ({ ...prev, catatan: e.target.value.slice(0, 100) }))}
+                id="contribution_catatan"
+                placeholder="Deskripsi kontribusi"
+                value={contributionFormData.catatan}
+                onChange={(e) =>
+                  setContributionFormData((prev) => ({
+                    ...prev,
+                    catatan: e.target.value.slice(0, 100),
+                  }))
+                }
                 maxLength={100}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Riwayat Kontribusi</Label>
+              <div className="max-h-40 overflow-y-auto space-y-2">
+                {isLoadingContributions ? (
+                  <HistoryListSkeleton count={3} type="contribution" />
+                ) : contributions.length === 0 ? (
+                  <div className="text-center py-4 text-gray-500">
+                    <p className="text-sm">Belum ada kontribusi</p>
+                  </div>
+                ) : (
+                  <>
+                    {contributions.slice(0, 3).map((contribution) => (
+                      <div
+                        key={contribution.id}
+                        className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded border"
+                      >
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-green-600">
+                              {safeFormatCurrency(
+                                contribution.nominal_kontribusi
+                              )}
+                            </span>
+                            {contribution.source_type === "transfer" && (
+                              <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                                Transfer
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-500 truncate">
+                            dari{" "}
+                            {contribution.nama_akun || "Akun tidak diketahui"}
+                          </span>
+                          {contribution.catatan && (
+                            <span className="text-xs text-gray-400 truncate">
+                              {contribution.catatan}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <span className="text-xs text-gray-600">
+                            {new Date(
+                              contribution.tanggal_kontribusi
+                            ).toLocaleDateString("id-ID")}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    {contributions.length > 3 && (
+                      <div className="text-center">
+                        <span className="text-xs text-gray-500">
+                          +{contributions.length - 3} kontribusi lainnya
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
             <ResponsiveDialogActions>
               <ResponsiveDialogButton
                 variant="outline"
-                onClick={() => setIsGoalDialogOpen(false)}
+                onClick={() => setIsContributionDialogOpen(false)}
               >
                 Batal
               </ResponsiveDialogButton>
-              <ResponsiveDialogButton type="submit" disabled={isSubmitting}>
+              <ResponsiveDialogButton
+                type="submit"
+                disabled={
+                  isSubmitting ||
+                  !contributionFormData.akun_id ||
+                  contributionFormData.nominal <= 0
+                }
+              >
                 {isSubmitting ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                    Menyimpan...
+                    Menambah...
                   </>
                 ) : (
-                  editingGoal ? 'Perbarui' : 'Tambah'
+                  "Tambah Kontribusi"
                 )}
               </ResponsiveDialogButton>
             </ResponsiveDialogActions>
           </ResponsiveDialogForm>
         </ResponsiveDialog>
-        
-        <Button className="w-full sm:w-auto" onClick={() => setIsGoalDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Tambah Tujuan
-        </Button>
-      </div>
 
-      <ResponsiveDialog
-        open={isContributionDialogOpen}
-        onOpenChange={handleContributionDialogClose}
-        title="Tambah Kontribusi"
-        description={`Tambahkan kontribusi untuk tujuan: ${selectedGoal?.nama_tujuan}`}
-        size="md"
-      >
-        <ResponsiveDialogForm onSubmit={handleSubmitContribution}>
-          <div className="space-y-2">
-            <Label htmlFor="contribution_nominal">Nominal Kontribusi</Label>
-            <CurrencyInput
-              value={contributionFormData.nominal}
-              onChange={(value) => setContributionFormData(prev => ({ ...prev, nominal: value }))}
-              placeholder="Masukkan nominal kontribusi"
-              required
-              maxLength={12}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="tanggal_kontribusi">Tanggal Kontribusi</Label>
-            <Input
-              id="tanggal_kontribusi"
-              type="date"
-              value={contributionFormData.tanggal_kontribusi}
-              onChange={(e) => setContributionFormData(prev => ({ ...prev, tanggal_kontribusi: e.target.value }))}
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="contribution_catatan">Catatan (Opsional)</Label>
-            <Input
-              id="contribution_catatan"
-              placeholder="Deskripsi kontribusi"
-              value={contributionFormData.catatan}
-              onChange={(e) => setContributionFormData(prev => ({ ...prev, catatan: e.target.value.slice(0, 100) }))}
-              maxLength={100}
-            />
-          </div>
-
-          {contributions.length > 0 && (
-            <div className="space-y-2">
-              <Label>Kontribusi Sebelumnya</Label>
-              <div className="max-h-32 overflow-y-auto space-y-2">
-                {contributions.slice(0, 3).map((contribution) => (
-                  <div key={contribution.id} className="flex justify-between text-sm p-2 bg-gray-50 rounded">
-                    <span>{safeFormatCurrency(contribution.nominal_kontribusi)}</span>
-                    <span>{new Date(contribution.tanggal_kontribusi).toLocaleDateString('id-ID')}</span>
-                  </div>
-                ))}
-              </div>
+        <div className="grid gap-6">
+          {isLoading ? (
+            <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <GoalCardSkeleton key={i} />
+              ))}
             </div>
-          )}
+          ) : goals.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-8">
+                <Target className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <p className="text-gray-500">
+                  Belum ada tujuan tabungan. Tambahkan tujuan pertama Anda!
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+              {goals.map((goal) => {
+                const typeInfo = getGoalTypeInfo(goal.jenis_tujuan);
+                const progress = calculateProgress(
+                  goal.nominal_terkumpul,
+                  goal.target_nominal
+                );
+                const daysRemaining = getDaysRemaining(goal.tenggat_tanggal);
 
-          <ResponsiveDialogActions>
-            <ResponsiveDialogButton
-              variant="outline"
-              onClick={() => setIsContributionDialogOpen(false)}
-            >
-              Batal
-            </ResponsiveDialogButton>
-            <ResponsiveDialogButton type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                  Menambah...
-                </>
-              ) : (
-                'Tambah Kontribusi'
-              )}
-            </ResponsiveDialogButton>
-          </ResponsiveDialogActions>
-        </ResponsiveDialogForm>
-      </ResponsiveDialog>
-
-      <div className="grid gap-6">
-        {isLoading ? (
-          <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <GoalCardSkeleton key={i} />
-            ))}
-          </div>
-        ) : goals.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-8">
-              <Target className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <p className="text-gray-500">Belum ada tujuan tabungan. Tambahkan tujuan pertama Anda!</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-            {goals.map((goal) => {
-              const typeInfo = getGoalTypeInfo(goal.jenis_tujuan);
-              const progress = calculateProgress(goal.nominal_terkumpul, goal.target_nominal);
-              const daysRemaining = getDaysRemaining(goal.tenggat_tanggal);
-              
-              return (
-                <Card key={goal.id} className="relative overflow-hidden">
-                  <CardHeader className="pb-3 px-4 sm:px-6">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <span className="text-xl sm:text-2xl flex-shrink-0">{typeInfo.icon}</span>
-                        <div className="min-w-0 flex-1">
-                          <CardTitle className="text-base sm:text-lg truncate" title={goal.nama_tujuan}>
-                            {goal.nama_tujuan}
-                          </CardTitle>
-                          <CardDescription className="text-sm truncate">{typeInfo.label}</CardDescription>
+                return (
+                  <Card key={goal.id} className="relative overflow-hidden">
+                    <CardHeader className="pb-3 px-4 sm:px-6">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className="text-xl sm:text-2xl flex-shrink-0">
+                            {typeInfo.icon}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <CardTitle
+                              className="text-base sm:text-lg truncate"
+                              title={goal.nama_tujuan}
+                            >
+                              {goal.nama_tujuan}
+                            </CardTitle>
+                            <CardDescription className="text-sm truncate">
+                              {typeInfo.label}
+                            </CardDescription>
+                          </div>
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditGoal(goal)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setDeleteDialog({ open: true, goal })
+                            }
+                            className="text-red-600 hover:text-red-700 hover:bg-red-100 h-8 w-8 p-0"
+                          >
+                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex gap-1 flex-shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditGoal(goal)}
-                          className="h-8 w-8 p-0"
+                    </CardHeader>
+                    <CardContent className="space-y-3 sm:space-y-4 px-4 sm:px-6">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs sm:text-sm">
+                          <span>Progress</span>
+                          <span>{progress.toFixed(1)}%</span>
+                        </div>
+                        <Progress value={progress} className="h-2" />
+                        <div className="flex justify-between text-xs sm:text-sm text-gray-600 gap-2">
+                          <span
+                            className="truncate"
+                            title={safeFormatCurrency(goal.nominal_terkumpul)}
+                          >
+                            {safeFormatCurrency(goal.nominal_terkumpul)}
+                          </span>
+                          <span
+                            className="truncate"
+                            title={safeFormatCurrency(goal.target_nominal)}
+                          >
+                            {safeFormatCurrency(goal.target_nominal)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {goal.tenggat_tanggal && (
+                        <div className="flex items-center gap-2 text-xs sm:text-sm">
+                          <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                          <span className="truncate">
+                            {daysRemaining !== null && daysRemaining >= 0 ? (
+                              <span
+                                className={
+                                  daysRemaining <= 30
+                                    ? "text-orange-600"
+                                    : "text-gray-600"
+                                }
+                              >
+                                {daysRemaining} hari lagi
+                              </span>
+                            ) : (
+                              <span className="text-red-600">
+                                Melewati tenggat
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+
+                      {goal.catatan && (
+                        <p
+                          className="text-xs sm:text-sm text-gray-600 truncate"
+                          title={goal.catatan}
                         >
-                          <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
+                          {goal.catatan}
+                        </p>
+                      )}
+
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => handleAddContribution(goal)}
+                          className="flex-1 text-xs sm:text-sm"
+                          size="sm"
+                        >
+                          <DollarSign className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
+                          <span className="hidden sm:inline">Tambah</span>
+                          <span className="sm:hidden">+</span>
                         </Button>
                         <Button
-                          variant="ghost"
+                          onClick={() => handleShowHistory(goal)}
+                          variant="outline"
+                          className="flex-1 text-xs sm:text-sm"
                           size="sm"
-                          onClick={() => setDeleteDialog({ open: true, goal })}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-100 h-8 w-8 p-0"
                         >
-                          <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <span className="hidden sm:inline">Riwayat</span>
+                          <span className="sm:hidden">📋</span>
                         </Button>
                       </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3 sm:space-y-4 px-4 sm:px-6">
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-xs sm:text-sm">
-                        <span>Progress</span>
-                        <span>{progress.toFixed(1)}%</span>
-                      </div>
-                      <Progress value={progress} className="h-2" />
-                      <div className="flex justify-between text-xs sm:text-sm text-gray-600 gap-2">
-                        <span className="truncate" title={safeFormatCurrency(goal.nominal_terkumpul)}>
-                          {safeFormatCurrency(goal.nominal_terkumpul)}
-                        </span>
-                        <span className="truncate" title={safeFormatCurrency(goal.target_nominal)}>
-                          {safeFormatCurrency(goal.target_nominal)}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {goal.tenggat_tanggal && (
-                      <div className="flex items-center gap-2 text-xs sm:text-sm">
-                        <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                        <span className="truncate">
-                          {daysRemaining !== null && daysRemaining >= 0 ? (
-                            <span className={daysRemaining <= 30 ? 'text-orange-600' : 'text-gray-600'}>
-                              {daysRemaining} hari lagi
-                            </span>
-                          ) : (
-                            <span className="text-red-600">Melewati tenggat</span>
-                          )}
-                        </span>
-                      </div>
-                    )}
-                    
-                    {goal.catatan && (
-                      <p className="text-xs sm:text-sm text-gray-600 truncate" title={goal.catatan}>
-                        {goal.catatan}
-                      </p>
-                    )}
-                    
-                    <Button 
-                      onClick={() => handleAddContribution(goal)}
-                      className="w-full text-xs sm:text-sm"
-                      size="sm"
-                    >
-                      <DollarSign className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                      <span className="hidden sm:inline">Tambah Kontribusi</span>
-                      <span className="sm:hidden">Kontribusi</span>
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
-        
+
+        <ResponsiveDialog
+          open={showHistoryDialog}
+          onOpenChange={setShowHistoryDialog}
+          title={`Riwayat Kontribusi`}
+          description={
+            historyGoal
+              ? `Semua kontribusi untuk tujuan: ${historyGoal.nama_tujuan}`
+              : ""
+          }
+          size="lg"
+        >
+          <div className="space-y-4">
+            {historyGoal && (
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-blue-800">
+                    {historyGoal.nama_tujuan}
+                  </span>
+                  <span className="text-xs text-blue-600">
+                    {calculateProgress(
+                      historyGoal.nominal_terkumpul,
+                      historyGoal.target_nominal
+                    ).toFixed(1)}
+                    %
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm text-blue-700">
+                  <span>
+                    Terkumpul:{" "}
+                    {safeFormatCurrency(historyGoal.nominal_terkumpul)}
+                  </span>
+                  <span>
+                    Target: {safeFormatCurrency(historyGoal.target_nominal)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Semua Kontribusi</Label>
+              <div className="max-h-96 overflow-y-auto space-y-2">
+                {isLoadingContributions ? (
+                  <HistoryListSkeleton count={5} type="contribution" />
+                ) : contributions.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p className="text-sm">Belum ada kontribusi</p>
+                  </div>
+                ) : (
+                  contributions.map((contribution) => (
+                    <div
+                      key={contribution.id}
+                      className="flex justify-between items-start p-3 bg-white border rounded-lg hover:bg-gray-50"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-green-600">
+                            {safeFormatCurrency(
+                              contribution.nominal_kontribusi
+                            )}
+                          </span>
+                          {contribution.source_type === "transfer" && (
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                              Transfer
+                            </span>
+                          )}
+                          {contribution.source_type === "direct" && (
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                              Langsung
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          <span>dari </span>
+                          <span className="font-medium">
+                            {contribution.nama_akun || "Akun tidak diketahui"}
+                          </span>
+                        </div>
+                        {contribution.catatan && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {contribution.catatan}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right flex-shrink-0 ml-3">
+                        <div className="text-sm font-medium text-gray-900">
+                          {new Date(
+                            contribution.tanggal_kontribusi
+                          ).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(
+                            contribution.tanggal_kontribusi
+                          ).toLocaleTimeString("id-ID", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <ResponsiveDialogActions>
+              <ResponsiveDialogButton
+                variant="outline"
+                onClick={() => setShowHistoryDialog(false)}
+              >
+                Tutup
+              </ResponsiveDialogButton>
+            </ResponsiveDialogActions>
+          </div>
+        </ResponsiveDialog>
+
         <ConfirmDialog
-        open={deleteDialog.open}
-        onOpenChange={handleDeleteDialogChange}
-        title="Hapus Tujuan"
-        description={`Apakah Anda yakin ingin menghapus tujuan "${deleteDialog.goal?.nama_tujuan}"? Semua kontribusi yang terkait juga akan dihapus. Tindakan ini tidak dapat dibatalkan.`}
-        onConfirm={handleDeleteGoal}
+          open={deleteDialog.open}
+          onOpenChange={handleDeleteDialogChange}
+          title="Hapus Tujuan"
+          description={`Apakah Anda yakin ingin menghapus tujuan "${deleteDialog.goal?.nama_tujuan}"? Semua kontribusi yang terkait juga akan dihapus. Tindakan ini tidak dapat dibatalkan.`}
+          onConfirm={handleDeleteGoal}
         />
       </div>
     </div>

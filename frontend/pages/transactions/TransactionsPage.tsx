@@ -285,9 +285,11 @@ export default function TransactionsPage(): JSX.Element {
       await loadData();
     } catch (error) {
       console.error("Failed to create transfer:", error);
+      const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan saat membuat transfer";
+      
       toast({
         title: "Gagal membuat transfer",
-        description: error instanceof Error ? error.message : "Terjadi kesalahan saat membuat transfer",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

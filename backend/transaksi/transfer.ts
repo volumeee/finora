@@ -28,11 +28,49 @@ export interface Transfer {
 export const createTransfer = api<CreateTransferRequest, Transfer>(
   { expose: true, method: "POST", path: "/transaksi/transfer" },
   async (req) => {
+    // Validate input
+    if (req.nominal <= 0) {
+      throw new Error("Nominal transfer harus lebih dari 0");
+    }
+    
+    if (req.akun_asal_id === req.akun_tujuan_id) {
+      throw new Error("Akun asal dan tujuan tidak boleh sama");
+    }
+
+    // Convert to cents for database
+    const nominalCents = Math.round(req.nominal * 100);
+
+    // Check source account exists and has sufficient balance
+    const sourceAccount = await akunDB.queryRow<{id: string, saldo_terkini: string}>`
+      SELECT id, saldo_terkini::text FROM akun 
+      WHERE id = ${req.akun_asal_id} AND tenant_id = ${req.tenant_id} AND dihapus_pada IS NULL
+    `;
+    
+    if (!sourceAccount) {
+      throw new Error("Akun asal tidak ditemukan");
+    }
+    
+    const currentBalance = parseInt(sourceAccount.saldo_terkini);
+    if (currentBalance < nominalCents) {
+      throw new Error("Saldo tidak mencukupi untuk transfer ini");
+    }
+
+    // Check destination account/goal exists
+    const destAccount = await akunDB.queryRow`
+      SELECT id FROM akun WHERE id = ${req.akun_tujuan_id} AND tenant_id = ${req.tenant_id} AND dihapus_pada IS NULL
+    `;
+    
+    const destGoal = await tujuanDB.queryRow`
+      SELECT id FROM tujuan_tabungan WHERE id = ${req.akun_tujuan_id} AND tenant_id = ${req.tenant_id} AND dihapus_pada IS NULL
+    `;
+    
+    if (!destAccount && !destGoal) {
+      throw new Error("Akun atau tujuan tidak ditemukan");
+    }
+
     const tx = await transaksiDB.begin();
 
     try {
-      // Convert to cents for database
-      const nominalCents = Math.round(req.nominal * 100);
 
       // Create outgoing transaction
       const transaksiKeluar = await tx.queryRow<Transaksi>`
@@ -50,7 +88,7 @@ export const createTransfer = api<CreateTransferRequest, Transfer>(
       }
 
       // Check if destination is a savings goal
-      const isGoal = await tujuanDB.queryRow`SELECT id FROM tujuan_tabungan WHERE id = ${req.akun_tujuan_id}`;
+      const isGoal = destGoal;
       
       let transaksiMasuk: Transaksi;
       let transfer: { id: string; dibuat_pada: Date };
