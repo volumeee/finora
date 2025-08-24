@@ -92,13 +92,17 @@ export function TransactionListItem({
           </div>
           <div className="flex-1 min-w-0">
             <h3 className={`font-medium text-gray-900 truncate ${compact ? 'text-sm sm:text-base' : ''}`}>
-              {isOut ? 'Transfer Keluar' : 'Transfer Masuk'}
+              {isOut ? `Transfer Keluar ke ${pairedAccountName}` : `Transfer Masuk dari ${pairedAccountName}`}
             </h3>
             <p className={`text-gray-600 truncate ${compact ? 'text-xs sm:text-sm' : 'text-sm'}`}>
-              {transferInfo.paired_account_id ? 
-                (isOut ? `${currentAccountName} → ${pairedAccountName}` : `${pairedAccountName} → ${currentAccountName}`) :
-                `${currentAccountName} → Tujuan Tabungan`
-              } • {new Date(transaction.tanggal_transaksi).toLocaleDateString("id-ID")}
+              {isOut ? 'Keluar dari' : 'Masuk ke'} {currentAccountName} • {new Date(transaction.dibuat_pada).toLocaleString("id-ID", {
+                weekday: 'short',
+                year: 'numeric', 
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
             </p>
             {transaction.catatan && (
               <p className={`text-gray-500 truncate ${compact ? 'text-xs sm:text-sm' : 'text-sm'}`}>
@@ -117,7 +121,7 @@ export function TransactionListItem({
             <p className={`truncate ${compact ? 'text-xs sm:text-sm' : 'text-xs'} ${
               isOut ? 'text-orange-600' : 'text-blue-600'
             }`}>
-              {isOut ? 'Keluar' : 'Masuk'}
+              {isOut ? `ke ${pairedAccountName}` : `dari ${pairedAccountName}`}
             </p>
           </div>
           {showActions && (
@@ -160,7 +164,14 @@ export function TransactionListItem({
             {transaction.catatan === 'Saldo awal akun' ? '💰 Saldo Awal Akun' : (transaction.nama_kategori || getCategoryName(transaction.kategori_id))}
           </h3>
           <p className={`text-gray-600 truncate ${compact ? 'text-xs sm:text-sm' : 'text-sm'}`}>
-            {isIncome ? 'Masuk ke' : isExpense ? 'Keluar dari' : ''} {transaction.nama_akun || getAccountName(transaction.akun_id)} • {new Date(transaction.tanggal_transaksi).toLocaleDateString("id-ID")}
+            {isIncome ? 'Masuk ke' : isExpense ? 'Keluar dari' : ''} {transaction.nama_akun || getAccountName(transaction.akun_id)} • {new Date(transaction.dibuat_pada).toLocaleString("id-ID", {
+              weekday: 'short',
+              year: 'numeric',
+              month: 'short', 
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
           </p>
           {transaction.catatan && (
             <p className={`text-gray-500 truncate ${compact ? 'text-xs sm:text-sm' : 'text-sm'}`}>

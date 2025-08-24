@@ -894,18 +894,7 @@ export default function TransactionsPage(): JSX.Element {
               </div>
             ) : (
               <div className="space-y-3">
-                {transactions
-                  .filter((transaction, index, arr) => {
-                    if (transaction.jenis === 'transfer' && transaction.transfer_info?.transfer_id) {
-                      const transferId = transaction.transfer_info.transfer_id;
-                      return arr.findIndex(t => 
-                        t.jenis === 'transfer' && 
-                        t.transfer_info?.transfer_id === transferId
-                      ) === index;
-                    }
-                    return true;
-                  })
-                  .map((transaction) => (
+                {transactions.map((transaction) => (
                     <TransactionListItem
                       key={transaction.id}
                       transaction={transaction}

@@ -128,6 +128,23 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
     const transferMap = new Map();
     const transferIds = rows.filter(r => r.jenis === 'transfer').map(r => r.id);
     
+    // Check for goal transfers (kontribusi_tujuan) first
+    const goalTransfers = new Map();
+    if (transferIds.length > 0) {
+      const contributions = await tujuanDB.queryAll<{
+        transaksi_id: string;
+        tujuan_tabungan_id: string;
+      }>`
+        SELECT transaksi_id, tujuan_tabungan_id 
+        FROM kontribusi_tujuan 
+        WHERE transaksi_id = ANY(${transferIds})
+      `;
+      
+      contributions.forEach(c => {
+        goalTransfers.set(c.transaksi_id, c.tujuan_tabungan_id);
+      });
+    }
+    
     if (transferIds.length > 0) {
       const transfers = await transaksiDB.queryAll<{
         id: string;
@@ -145,38 +162,104 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
       });
     }
 
-    // For transfers, only show the 'keluar' (outgoing) transaction to avoid duplicates
+    // Add missing paired transactions and create them if they don't exist
     let filteredRows = rows;
     
     if (transferIds.length > 0) {
-      // Filter out 'masuk' transactions that have a paired 'keluar' transaction
-      const transferPairs = new Set();
-      
-      rows.forEach(row => {
-        if (row.jenis === 'transfer') {
-          const transferInfo = transferMap.get(row.id);
-          if (transferInfo && transferInfo.type === 'keluar') {
-            transferPairs.add(transferInfo.transferId);
-          }
+      // For incomplete transfers, create virtual paired transactions
+      const incompleteTransfers = rows.filter(r => {
+        if (r.jenis === 'transfer') {
+          const transferInfo = transferMap.get(r.id);
+          return !transferInfo || !transferInfo.pairedId;
         }
+        return false;
       });
       
-      filteredRows = rows.filter(row => {
-        if (row.jenis === 'transfer') {
-          const transferInfo = transferMap.get(row.id);
-          if (transferInfo && transferInfo.type === 'masuk') {
-            // Only include 'masuk' if there's no corresponding 'keluar' in the results
-            return !transferPairs.has(transferInfo.transferId);
-          }
+      // Add virtual paired transactions for incomplete transfers
+      for (const incomplete of incompleteTransfers) {
+        const goalId = goalTransfers.get(incomplete.id);
+        if (goalId) {
+          // Create virtual incoming transaction for goal
+          const virtualTransaction = {
+            id: `virtual-${incomplete.id}`,
+            tenant_id: incomplete.tenant_id,
+            akun_id: goalId,
+            kategori_id: null,
+            jenis: 'transfer',
+            nominal: incomplete.nominal,
+            mata_uang: incomplete.mata_uang,
+            tanggal_transaksi: incomplete.tanggal_transaksi,
+            catatan: 'Kontribusi tujuan tabungan',
+            pengguna_id: incomplete.pengguna_id,
+            transaksi_berulang_id: null,
+            dibuat_pada: incomplete.dibuat_pada,
+            diubah_pada: incomplete.diubah_pada
+          };
+          
+          filteredRows.push(virtualTransaction);
+          
+          // Add to transfer map
+          transferMap.set(incomplete.id, { transferId: `virtual-transfer-${incomplete.id}`, type: 'keluar', pairedId: virtualTransaction.id });
+          transferMap.set(virtualTransaction.id, { transferId: `virtual-transfer-${incomplete.id}`, type: 'masuk', pairedId: incomplete.id });
         }
-        return true;
-      });
+      }
+      
+      // Get existing paired transactions (only real UUIDs)
+      const pairedIds = Array.from(transferMap.values()).map(info => info.pairedId).filter(Boolean);
+      const existingIds = new Set(rows.map(r => r.id));
+      const missingIds = pairedIds.filter(id => !existingIds.has(id) && !id.startsWith('virtual-'));
+      
+      if (missingIds.length > 0) {
+        const missingTransactions = await transaksiDB.rawQueryAll<{
+          id: string;
+          tenant_id: string;
+          akun_id: string;
+          kategori_id: string;
+          jenis: string;
+          nominal: string;
+          mata_uang: string;
+          tanggal_transaksi: string;
+          catatan?: string;
+          pengguna_id: string;
+          transaksi_berulang_id?: string;
+          dibuat_pada: string;
+          diubah_pada: string;
+        }>(
+          `SELECT
+            id, tenant_id, akun_id, kategori_id, jenis,
+            nominal::text AS nominal, mata_uang,
+            tanggal_transaksi::text AS tanggal_transaksi,
+            catatan, pengguna_id, transaksi_berulang_id,
+            dibuat_pada, diubah_pada
+          FROM transaksi
+          WHERE id = ANY($1) AND tenant_id = $2 AND dihapus_pada IS NULL`,
+          missingIds, tenant_id
+        );
+        
+        filteredRows = [...filteredRows, ...missingTransactions];
+        
+        // Update transfer map for missing transactions
+        missingTransactions.forEach(t => {
+          const existingTransfer = Array.from(transferMap.entries())
+            .find(([_, info]) => info.pairedId === t.id);
+          if (existingTransfer) {
+            const [originalId, info] = existingTransfer;
+            transferMap.set(t.id, {
+              transferId: info.transferId,
+              type: info.type === 'keluar' ? 'masuk' : 'keluar',
+              pairedId: originalId
+            });
+          }
+        });
+      }
     }
 
     // Get paired account info for all transfers
     const pairedAccounts = new Map();
+    const allTransferIds = filteredRows.filter(r => r.jenis === 'transfer').map(r => r.id);
+    const realTransferIds = allTransferIds.filter(id => !id.startsWith('virtual-'));
 
-    if (transferIds.length > 0) {
+    if (realTransferIds.length > 0) {
       // Get all transfer relationships to properly map accounts
       const allTransferRelations = await transaksiDB.queryAll<{
         transfer_id: string;
@@ -194,7 +277,7 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
         FROM transfer_antar_akun ta
         LEFT JOIN transaksi t1 ON ta.transaksi_keluar_id = t1.id
         LEFT JOIN transaksi t2 ON ta.transaksi_masuk_id = t2.id
-        WHERE (ta.transaksi_keluar_id = ANY(${transferIds}) OR ta.transaksi_masuk_id = ANY(${transferIds}))
+        WHERE (ta.transaksi_keluar_id = ANY(${realTransferIds}) OR ta.transaksi_masuk_id = ANY(${realTransferIds}))
         AND t1.dihapus_pada IS NULL AND t2.dihapus_pada IS NULL
       `;
       
@@ -203,53 +286,49 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
         pairedAccounts.set(rel.masuk_id, rel.keluar_akun);
       });
     }
+    
+    // Add virtual paired accounts
+    filteredRows.forEach(r => {
+      if (r.id.startsWith('virtual-')) {
+        const originalId = r.id.replace('virtual-', '');
+        pairedAccounts.set(originalId, r.akun_id);
+        pairedAccounts.set(r.id, filteredRows.find(t => t.id === originalId)?.akun_id);
+      }
+    });
 
-    // Get account and category names
-    const accountIds = [...new Set(filteredRows.map(r => r.akun_id))];
-    const categoryIds = [...new Set(filteredRows.map(r => r.kategori_id).filter(Boolean))];
-    const pairedAccountIds = [...new Set(Array.from(pairedAccounts.values()))];
+    // Get account and category names (filter out virtual IDs)
+    const accountIds = [...new Set(filteredRows.map(r => r.akun_id).filter(id => id && !id.startsWith('virtual-')))];
+    const categoryIds = [...new Set(filteredRows.map(r => r.kategori_id).filter(id => id && !id.startsWith('virtual-')))];
+    const pairedAccountIds = [...new Set(Array.from(pairedAccounts.values()).filter(id => id && !id.startsWith('virtual-')))];
     const allAccountIds = [...new Set([...accountIds, ...pairedAccountIds])];
 
-    // Get account names
+    // Get account names (filter out virtual IDs)
     const accountNames = new Map();
-    if (allAccountIds.length > 0) {
+    const validAccountIds = allAccountIds.filter(id => id && !id.startsWith('virtual-'));
+    if (validAccountIds.length > 0) {
       const accounts = await akunDB.queryAll<{id: string, nama_akun: string}>`
-        SELECT id, nama_akun FROM akun WHERE id = ANY(${allAccountIds}) AND dihapus_pada IS NULL
+        SELECT id, nama_akun FROM akun WHERE id = ANY(${validAccountIds}) AND dihapus_pada IS NULL
       `;
       accounts.forEach(a => accountNames.set(a.id, a.nama_akun));
       
       // Also check for goals
       const goals = await tujuanDB.queryAll<{id: string, nama_tujuan: string}>`
-        SELECT id, nama_tujuan FROM tujuan_tabungan WHERE id = ANY(${allAccountIds}) AND dihapus_pada IS NULL
+        SELECT id, nama_tujuan FROM tujuan_tabungan WHERE id = ANY(${validAccountIds}) AND dihapus_pada IS NULL
       `;
       goals.forEach(g => accountNames.set(g.id, `🎯 ${g.nama_tujuan}`));
     }
 
-    // Get category names
+    // Get category names (filter out virtual IDs)
     const categoryNames = new Map();
-    if (categoryIds.length > 0) {
+    const validCategoryIds = categoryIds.filter(id => id && !id.startsWith('virtual-'));
+    if (validCategoryIds.length > 0) {
       const categories = await kategoriDB.queryAll<{id: string, nama_kategori: string}>`
-        SELECT id, nama_kategori FROM kategori WHERE id = ANY(${categoryIds}) AND dihapus_pada IS NULL
+        SELECT id, nama_kategori FROM kategori WHERE id = ANY(${validCategoryIds}) AND dihapus_pada IS NULL
       `;
       categories.forEach(c => categoryNames.set(c.id, c.nama_kategori));
     }
 
-    // Check for goal transfers (kontribusi_tujuan)
-    const goalTransfers = new Map();
-    if (transferIds.length > 0) {
-      const contributions = await tujuanDB.queryAll<{
-        transaksi_id: string;
-        tujuan_tabungan_id: string;
-      }>`
-        SELECT transaksi_id, tujuan_tabungan_id 
-        FROM kontribusi_tujuan 
-        WHERE transaksi_id = ANY(${transferIds})
-      `;
-      
-      contributions.forEach(c => {
-        goalTransfers.set(c.transaksi_id, c.tujuan_tabungan_id);
-      });
-    }
+
 
     // Convert and add transfer metadata
     const transaksi: Transaksi[] = filteredRows.map((r) => {
@@ -265,15 +344,13 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
         const goalId = goalTransfers.get(r.id);
         
         if (transferInfo) {
-          // For 'keluar' transactions, show the destination account
-          // For 'masuk' transactions (when no 'keluar' pair exists), show the source account
-          const pairedAccountId = pairedAccounts.get(r.id);
+          // Regular transfer between accounts
           (transaction as any).transfer_info = {
             paired_transaction_id: transferInfo.pairedId,
             transfer_id: transferInfo.transferId,
             type: transferInfo.type,
-            paired_account_id: pairedAccountId,
-            paired_account_name: accountNames.get(pairedAccountId)
+            paired_account_id: pairedAccounts.get(r.id),
+            paired_account_name: accountNames.get(pairedAccounts.get(r.id))
           };
         } else if (goalId) {
           // Transfer to goal
@@ -285,81 +362,90 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
             paired_account_name: accountNames.get(goalId)
           };
         } else {
-          // Unknown transfer
-          (transaction as any).transfer_info = {
-            paired_transaction_id: null,
-            transfer_id: null,
-            type: 'keluar',
-            paired_account_id: null,
-            paired_account_name: null
-          };
+          // Check if this is a goal transfer
+          const goalId = goalTransfers.get(r.id);
+          if (goalId) {
+            (transaction as any).transfer_info = {
+              paired_transaction_id: null,
+              transfer_id: null,
+              type: 'keluar',
+              paired_account_id: goalId,
+              paired_account_name: accountNames.get(goalId)
+            };
+          } else {
+            // Unknown transfer - mark as incomplete
+            (transaction as any).transfer_info = {
+              paired_transaction_id: null,
+              transfer_id: null,
+              type: 'keluar',
+              paired_account_id: null,
+              paired_account_name: 'Transfer Tidak Lengkap'
+            };
+          }
         }
       }
       
       return transaction;
     });
 
-    // split kategori
+    // split kategori (only for real transactions, not virtual ones)
     for (const t of transaksi) {
-      const splits = await transaksiDB.queryAll<{
-        kategori_id: string;
-        nominal_split: string;
-      }>`
-        SELECT kategori_id, nominal_split::text AS nominal_split
-        FROM detail_transaksi_split
-        WHERE transaksi_id = ${t.id}
-      `;
+      if (!t.id.startsWith('virtual-')) {
+        const splits = await transaksiDB.queryAll<{
+          kategori_id: string;
+          nominal_split: string;
+        }>`
+          SELECT kategori_id, nominal_split::text AS nominal_split
+          FROM detail_transaksi_split
+          WHERE transaksi_id = ${t.id}
+        `;
 
-      if (splits.length > 0) {
-        t.split_kategori = splits.map((s) => ({
-          kategori_id: s.kategori_id,
-          nominal_split: parseInt(s.nominal_split, 10) / 100,
-        }));
+        if (splits.length > 0) {
+          t.split_kategori = splits.map((s) => ({
+            kategori_id: s.kategori_id,
+            nominal_split: parseInt(s.nominal_split, 10) / 100,
+          }));
+        }
       }
     }
 
-    // count total (excluding duplicate transfer 'masuk' transactions)
+    // count total
     let countQuery = `
-      SELECT COUNT(CASE 
-        WHEN t.jenis = 'transfer' THEN
-          CASE WHEN ta.transaksi_keluar_id = t.id THEN 1 ELSE 0 END
-        ELSE 1
-      END)::text AS count
-      FROM transaksi t
-      LEFT JOIN transfer_antar_akun ta ON (ta.transaksi_keluar_id = t.id OR ta.transaksi_masuk_id = t.id)
-      WHERE t.tenant_id = $1 AND t.dihapus_pada IS NULL
+      SELECT COUNT(*)::text AS count
+      FROM transaksi
+      WHERE tenant_id = $1 AND dihapus_pada IS NULL
     `;
 
     const countParams: any[] = [tenant_id];
     let countParamIndex = 2;
 
     if (akun_id) {
-      countQuery += ` AND t.akun_id = $${countParamIndex++}`;
+      countQuery += ` AND akun_id = $${countParamIndex++}`;
       countParams.push(akun_id);
     }
 
     if (kategori_id) {
-      countQuery += ` AND t.kategori_id = $${countParamIndex++}`;
+      countQuery += ` AND kategori_id = $${countParamIndex++}`;
       countParams.push(kategori_id);
     }
 
     if (jenis) {
-      countQuery += ` AND t.jenis = $${countParamIndex++}`;
+      countQuery += ` AND jenis = $${countParamIndex++}`;
       countParams.push(jenis);
     }
 
     if (tanggal_dari) {
-      countQuery += ` AND t.tanggal_transaksi >= $${countParamIndex++}`;
+      countQuery += ` AND tanggal_transaksi >= $${countParamIndex++}`;
       countParams.push(tanggal_dari);
     }
 
     if (tanggal_sampai) {
-      countQuery += ` AND t.tanggal_transaksi <= $${countParamIndex++}`;
+      countQuery += ` AND tanggal_transaksi <= $${countParamIndex++}`;
       countParams.push(tanggal_sampai);
     }
 
     if (search) {
-      countQuery += ` AND (t.catatan ILIKE $${countParamIndex++} OR t.nominal::text ILIKE $${countParamIndex++})`;
+      countQuery += ` AND (catatan ILIKE $${countParamIndex++} OR nominal::text ILIKE $${countParamIndex++})`;
       countParams.push(`%${search}%`, `%${search}%`);
     }
 

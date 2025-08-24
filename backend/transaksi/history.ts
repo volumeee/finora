@@ -29,6 +29,7 @@ interface AccountHistoryResponse {
     nominal: number;
     saldo_setelah: number;
     tanggal_transaksi: string;
+    dibuat_pada: Date;
     catatan?: string;
     nama_kategori?: string;
     transfer_info?: {
@@ -94,7 +95,7 @@ export const getAccountHistory = api<GetAccountHistoryParams, AccountHistoryResp
       tanggal_transaksi: string;
       catatan?: string;
       kategori_id?: string;
-      dibuat_pada: string;
+      dibuat_pada: Date;
     }>(query, ...params);
 
     // Get transfer info
@@ -203,6 +204,7 @@ export const getAccountHistory = api<GetAccountHistoryParams, AccountHistoryResp
         nominal,
         saldo_setelah: 0,
         tanggal_transaksi: t.tanggal_transaksi,
+        dibuat_pada: t.dibuat_pada,
         catatan: t.catatan,
         nama_kategori: categoryNames.get(t.kategori_id)
       };

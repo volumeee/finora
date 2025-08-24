@@ -42,6 +42,7 @@ interface AccountHistory {
     nominal: number;
     saldo_setelah: number;
     tanggal_transaksi: string;
+    dibuat_pada: string;
     catatan?: string;
     nama_kategori?: string;
     transfer_info?: {
@@ -369,10 +370,13 @@ export default function AccountHistoryPage(): JSX.Element {
                         </p>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1">
                           <p className="text-sm text-gray-600">
-                            {new Date(transaction.tanggal_transaksi).toLocaleDateString("id-ID", {
+                            {new Date(transaction.dibuat_pada).toLocaleString("id-ID", {
+                              weekday: 'short',
                               day: "2-digit",
                               month: "short",
                               year: "numeric",
+                              hour: '2-digit',
+                              minute: '2-digit'
                             })}
                           </p>
                           {transaction.catatan && (
