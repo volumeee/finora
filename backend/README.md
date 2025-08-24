@@ -115,30 +115,258 @@ Backend API untuk sistem manajemen keuangan pribadi yang dibangun dengan **Encor
 ### Frontend Service (`/frontend`)
 - `GET /frontend/*path` - Static assets
 
-## 💾 Database Schema
+## 💾 Database Schema (ERD)
 
-### Core Tables
-- **tenants** - Data tenant
-- **pengguna** - Data pengguna
-- **peran** - Role sistem
-- **pengguna_tenant** - Relasi user-tenant
+### Core Tenant & User Management
+```mermaid
+erDiagram
+    tenants ||--o{ pengguna_tenant : has
+    pengguna ||--o{ pengguna_tenant : belongs_to
+    peran ||--o{ pengguna_tenant : defines
+    
+    tenants {
+        uuid id PK
+        varchar nama
+        varchar sub_domain UK
+        varchar zona_waktu
+        text logo_url
+        timestamptz dibuat_pada
+        timestamptz diubah_pada
+        timestamptz dihapus_pada
+    }
+    
+    pengguna {
+        uuid id PK
+        varchar nama_lengkap
+        varchar email UK
+        text kata_sandi_hash
+        text avatar_url
+        varchar no_telepon
+        timestamptz dibuat_pada
+        timestamptz diubah_pada
+        timestamptz dihapus_pada
+    }
+    
+    peran {
+        smallint id PK
+        varchar nama_peran
+        text keterangan
+    }
+    
+    pengguna_tenant {
+        uuid id PK
+        uuid tenant_id FK
+        uuid pengguna_id FK
+        smallint peran_id FK
+        timestamptz bergabung_pada
+    }
+```
 
-### Financial Tables
-- **akun** - Akun keuangan
-- **kategori** - Kategori transaksi
-- **transaksi** - Data transaksi
-- **detail_transaksi_split** - Split kategori
-- **transfer_antar_akun** - Transfer data
-- **tujuan_tabungan** - Tujuan tabungan
-- **kontribusi_tujuan** - Kontribusi tujuan
-- **kalkulator_kpr** - Data KPR
+### Financial Core (Akun & Kategori)
+```mermaid
+erDiagram
+    tenants ||--o{ akun : owns
+    tenants ||--o{ kategori : has
+    kategori ||--o{ kategori : parent_child
+    
+    akun {
+        uuid id PK
+        uuid tenant_id FK
+        varchar nama_akun
+        varchar jenis
+        varchar mata_uang
+        bigint saldo_awal
+        bigint saldo_terkini
+        text keterangan
+        timestamptz dibuat_pada
+        timestamptz diubah_pada
+        timestamptz dihapus_pada
+    }
+    
+    kategori {
+        uuid id PK
+        uuid tenant_id FK
+        varchar nama_kategori
+        text warna
+        text ikon
+        uuid kategori_induk_id FK
+        boolean sistem_bawaan
+        timestamptz dibuat_pada
+        timestamptz diubah_pada
+        timestamptz dihapus_pada
+    }
+```
 
-### System Tables
-- **sesi_login** - Session management
-- **undangan** - User invitations
-- **notifikasi** - Notifications
-- **audit_log** - Audit trail
-- **calculator_results** - Saved calculations
+### Transaction Management
+```mermaid
+erDiagram
+    tenants ||--o{ transaksi : contains
+    akun ||--o{ transaksi : records
+    kategori ||--o{ transaksi : categorizes
+    pengguna ||--o{ transaksi : creates
+    
+    transaksi ||--o{ detail_transaksi_split : splits
+    transaksi ||--o{ transfer_antar_akun : outgoing
+    transaksi ||--o{ transfer_antar_akun : incoming
+    transaksi ||--o{ struk : has_receipt
+    
+    transaksi {
+        uuid id PK
+        uuid tenant_id FK
+        uuid akun_id FK
+        uuid kategori_id FK
+        varchar jenis
+        bigint nominal
+        varchar mata_uang
+        date tanggal_transaksi
+        text catatan
+        uuid pengguna_id FK
+        uuid transaksi_berulang_id
+        timestamptz dibuat_pada
+        timestamptz diubah_pada
+        timestamptz dihapus_pada
+    }
+    
+    detail_transaksi_split {
+        uuid id PK
+        uuid transaksi_id FK
+        uuid kategori_id FK
+        bigint nominal_split
+    }
+    
+    transfer_antar_akun {
+        uuid id PK
+        uuid transaksi_keluar_id FK
+        uuid transaksi_masuk_id FK
+        timestamptz dibuat_pada
+    }
+    
+    struk {
+        uuid id PK
+        uuid transaksi_id FK
+        text nama_file
+        text s3_key
+        varchar ocr_merchant
+        bigint ocr_total
+        smallint ocr_confidence
+        jsonb ocr_raw
+        timestamptz dibuat_pada
+    }
+```
+
+### Goals & Contributions
+```mermaid
+erDiagram
+    tenants ||--o{ tujuan_tabungan : manages
+    tujuan_tabungan ||--o{ kontribusi_tujuan : receives
+    tujuan_tabungan ||--o| kalkulator_kpr : may_have
+    
+    transaksi ||--o{ kontribusi_tujuan : contributes
+    akun ||--o{ kontribusi_tujuan : sources
+    
+    tujuan_tabungan {
+        uuid id PK
+        uuid tenant_id FK
+        varchar nama_tujuan
+        varchar jenis_tujuan
+        bigint target_nominal
+        bigint nominal_terkumpul
+        date tenggat_tanggal
+        text catatan
+        timestamptz dibuat_pada
+        timestamptz diubah_pada
+        timestamptz dihapus_pada
+    }
+    
+    kontribusi_tujuan {
+        uuid id PK
+        uuid tujuan_tabungan_id FK
+        uuid transaksi_id FK
+        uuid akun_id FK
+        bigint nominal_kontribusi
+        date tanggal_kontribusi
+        text catatan
+    }
+    
+    kalkulator_kpr {
+        uuid id PK
+        uuid tujuan_tabungan_id FK
+        bigint harga_properti
+        bigint uang_muka_persen
+        smallint tenor_tahun
+        bigint bunga_tahunan_persen
+        varchar tipe_bunga
+        bigint biaya_provisi
+        bigint biaya_admin
+        timestamptz dibuat_pada
+        timestamptz diubah_pada
+    }
+```
+
+### Authentication & System
+```mermaid
+erDiagram
+    pengguna ||--o{ sesi_login : has_sessions
+    tenants ||--o{ undangan : sends
+    pengguna ||--o{ notifikasi : receives
+    tenants ||--o{ audit_log : tracks
+    tenants ||--o{ calculator_results : saves
+    
+    sesi_login {
+        uuid id PK
+        uuid pengguna_id FK
+        text refresh_token_hash
+        text user_agent
+        inet ip_address
+        timestamptz kedaluwarsa
+        timestamptz dibuat_pada
+    }
+    
+    undangan {
+        uuid id PK
+        uuid tenant_id FK
+        varchar email
+        smallint peran_id FK
+        text token UK
+        uuid diundang_oleh FK
+        timestamptz kedaluwarsa
+        timestamptz diterima_pada
+        timestamptz dibuat_pada
+    }
+    
+    notifikasi {
+        uuid id PK
+        uuid pengguna_id FK
+        varchar judul
+        text isi
+        boolean sudah_dibaca
+        varchar tipe
+        jsonb metadata
+        timestamptz dibuat_pada
+    }
+    
+    audit_log {
+        uuid id PK
+        uuid tenant_id FK
+        varchar tabel_target
+        uuid record_id
+        varchar aksi
+        jsonb perubahan_json
+        uuid pengguna_id FK
+        timestamptz waktu
+    }
+    
+    calculator_results {
+        uuid id PK
+        uuid tenant_id FK
+        varchar nama_perhitungan
+        varchar tipe_kalkulator
+        jsonb input_data
+        jsonb result_data
+        timestamp created_at
+        timestamp updated_at
+    }
+```
 
 ## 🔒 Keamanan
 
@@ -216,6 +444,31 @@ encore run
 - Automatic balance updates
 - Transaction pairing untuk transfers
 - OCR receipt processing (ready)
+
+## 🔄 Business Logic Relationships
+
+### Transfer Flow
+1. **Account-to-Account Transfer**:
+   - Creates paired transactions (keluar + masuk)
+   - Links via `transfer_antar_akun` table
+   - Updates both account balances
+
+2. **Account-to-Goal Transfer**:
+   - Creates outgoing transaction from account
+   - Creates incoming transaction to goal (virtual akun_id = tujuan_id)
+   - Creates `kontribusi_tujuan` record
+   - Updates account balance and goal progress
+
+3. **Direct Goal Contribution**:
+   - Creates transaction record
+   - Creates `kontribusi_tujuan` record with akun_id
+   - Updates account balance and goal progress
+
+### Data Consistency
+- **Soft Delete**: All main entities use `dihapus_pada` timestamp
+- **Audit Trail**: All changes logged in `audit_log`
+- **Balance Sync**: Account balances updated via triggers and API calls
+- **Goal Progress**: Auto-calculated from `kontribusi_tujuan` records
 
 ## 🔄 Business Logic
 
