@@ -1,193 +1,117 @@
-# Finora Frontend - Aplikasi Web Manajemen Keuangan Pribadi
+# Finora Frontend - Web Application
 
 ## Gambaran Umum
-Finora Frontend adalah aplikasi web modern yang dibangun dengan **React 19** dan **TypeScript** untuk sistem manajemen keuangan pribadi. Aplikasi ini menyediakan antarmuka pengguna yang responsif dan intuitif untuk mengelola keuangan dengan fitur lengkap seperti pelacakan transaksi, manajemen akun, perencanaan tujuan, dan kalkulator keuangan.
+Aplikasi web modern untuk sistem manajemen keuangan pribadi yang dibangun dengan **React 19** dan **TypeScript**. Menyediakan antarmuka responsif untuk mengelola keuangan dengan fitur lengkap.
 
-## 🚀 Teknologi Stack
-
-### Core Framework
-- **React 19.1.0** - Library UI modern dengan fitur terbaru
-- **TypeScript 5.8.3** - Type safety dan developer experience yang lebih baik
-- **Vite 6.3.5** - Build tool yang cepat dan modern
-- **React Router DOM 7.6.3** - Routing dan navigasi
-
-### UI & Styling
-- **Tailwind CSS 4.1.11** - Utility-first CSS framework
-- **Radix UI** - Komponen UI primitif yang accessible
-- **Lucide React** - Icon library modern
-- **Class Variance Authority** - Utility untuk variant styling
-
-### State Management & Data Fetching
-- **TanStack React Query 5.81.5** - Server state management
-- **React Context API** - Global state management
-- **Custom Hooks** - Reusable logic
-
-### Development Tools
-- **Bun** - Package manager yang cepat
-- **ESLint & TypeScript** - Code quality dan type checking
-- **Vite Dev Server** - Hot reload development
+## 🚀 Tech Stack
+- **React 19.1.0** - Modern UI library
+- **TypeScript 5.8.3** - Type safety
+- **Vite 6.3.5** - Build tool
+- **Tailwind CSS 4.1.11** - Styling
+- **Radix UI** - UI components
+- **TanStack React Query 5.81.5** - State management
+- **React Router DOM 7.6.3** - Routing
 
 ## 📁 Struktur Proyek
-
 ```
 frontend/
-├── components/           # Komponen UI reusable
-│   ├── auth/            # Komponen autentikasi
-│   │   └── ProtectedRoute.tsx
-│   ├── layouts/         # Layout komponen
-│   │   ├── AuthLayout.tsx
-│   │   └── DashboardLayout.tsx
-│   ├── navigation/      # Komponen navigasi
-│   │   ├── Header.tsx
-│   │   ├── MobileNav.tsx
-│   │   └── Sidebar.tsx
-│   ├── reports/         # Komponen laporan
-│   │   ├── BudgetReport.tsx
-│   │   ├── CashflowReport.tsx
-│   │   └── NetWorthReport.tsx
-│   ├── settings/        # Komponen pengaturan
-│   │   ├── MemberManagement.tsx
-│   │   ├── ProfileSettings.tsx
-│   │   ├── SettingsLayout.tsx
-│   │   └── TenantSettings.tsx
-│   ├── tenant/          # Komponen tenant
-│   │   └── TenantSwitcher.tsx
-│   ├── ui/              # UI primitif dan komponen dasar
-│   │   ├── avatar.tsx
-│   │   ├── badge.tsx
-│   │   ├── button.tsx
-│   │   ├── card.tsx
-│   │   ├── dialog.tsx
-│   │   ├── input.tsx
-│   │   ├── select.tsx
-│   │   └── ... (20+ komponen UI)
-│   └── ErrorBoundary.tsx
-├── contexts/            # React Context providers
-│   ├── AuthContext.tsx  # Manajemen autentikasi
-│   └── TenantContext.tsx # Manajemen tenant
-├── hooks/               # Custom React hooks
-│   └── useSettings.ts
-├── lib/                 # Utility libraries
-│   ├── api-client.ts    # HTTP client dengan auth
-│   ├── format.ts        # Formatting utilities
-│   └── utils.ts         # Helper functions
-├── pages/               # Halaman aplikasi
-│   ├── auth/            # Halaman autentikasi
-│   │   ├── LoginPage.tsx
-│   │   ├── RegisterPage.tsx
-│   │   └── AcceptInvitePage.tsx
-│   ├── dashboard/       # Dashboard utama
-│   │   └── DashboardPage.tsx
-│   ├── transactions/    # Manajemen transaksi
-│   │   └── TransactionsPage.tsx
-│   ├── accounts/        # Manajemen akun
-│   │   ├── AccountsPage.tsx
-│   │   └── AccountHistoryPage.tsx
-│   ├── categories/      # Manajemen kategori
-│   │   └── CategoriesPage.tsx
-│   ├── goals/           # Tujuan tabungan
-│   │   └── GoalsPage.tsx
-│   ├── calculators/     # Kalkulator keuangan
-│   │   └── CalculatorsPage.tsx
-│   ├── reports/         # Laporan keuangan
-│   │   └── ReportsPage.tsx
-│   └── settings/        # Pengaturan
-│       └── SettingsPage.tsx
-├── client.ts            # Generated API client
-├── App.tsx              # Root component
-├── main.tsx             # Entry point
-└── index.css            # Global styles
+├── components/          # UI components
+│   ├── auth/           # Authentication
+│   ├── layouts/        # Layout components
+│   ├── navigation/     # Navigation
+│   ├── reports/        # Reports
+│   ├── settings/       # Settings
+│   ├── tenant/         # Tenant management
+│   └── ui/             # UI primitives (20+ components)
+├── contexts/           # React contexts
+│   ├── AuthContext.tsx
+│   └── TenantContext.tsx
+├── hooks/              # Custom hooks
+├── lib/                # Utilities
+│   ├── api-client.ts   # HTTP client
+│   ├── format.ts       # Formatters
+│   └── utils.ts        # Helpers
+├── pages/              # Application pages
+│   ├── auth/           # Login, Register
+│   ├── dashboard/      # Main dashboard
+│   ├── transactions/   # Transaction management
+│   ├── accounts/       # Account management
+│   ├── categories/     # Category management
+│   ├── goals/          # Savings goals
+│   ├── calculators/    # Financial calculators
+│   ├── reports/        # Financial reports
+│   └── settings/       # Settings
+└── client.ts           # Generated API client
 ```
 
 ## 🎯 Fitur Utama
 
-### 1. **Sistem Autentikasi**
-- **Login/Register** dengan validasi form
-- **JWT Token Management** dengan auto-refresh
-- **Multi-tenant Support** dengan tenant switching
-- **Protected Routes** dengan role-based access
-- **Session Persistence** dengan localStorage
+### Authentication & Multi-tenant
+- JWT token management dengan auto-refresh
+- Multi-tenant support dengan tenant switching
+- Role-based access control
+- Protected routes
 
-### 2. **Dashboard Interaktif**
-- **Ringkasan Keuangan** real-time
-- **Grafik dan Statistik** visual
-- **Transaksi Terbaru** dengan detail
-- **Progress Tujuan** dengan indikator
-- **Quick Actions** untuk operasi cepat
+### Dashboard Interaktif
+- Real-time financial overview
+- Visual charts dan statistics
+- Recent transactions dengan transfer tracking
+- Goal progress indicators
+- Quick actions
 
-### 3. **Manajemen Transaksi**
-- **CRUD Transaksi** lengkap (Pemasukan, Pengeluaran, Transfer)
-- **Filter dan Pencarian** advanced
-- **Split Categories** untuk transaksi kompleks
-- **Transfer Antar Akun** dengan tracking
-- **Export Data** ke CSV/JSON
-- **Responsive Design** untuk mobile dan desktop
+### Transaction Management
+- CRUD operations (Income, Expense, Transfer)
+- Advanced filtering dan search
+- Split categories
+- Account-to-account transfers
+- Goal contributions
+- Export capabilities (CSV/JSON)
 
-### 4. **Manajemen Akun Keuangan**
-- **6 Jenis Akun**: Kas, Bank, E-Wallet, Kartu Kredit, Pinjaman, Aset
-- **Real-time Balance** tracking
-- **Account History** dengan pagination
-- **Multi-currency Support** (default IDR)
-- **Balance Validation** untuk transaksi
+### Account Management
+- 6 account types (Cash, Bank, E-Wallet, Credit Card, Loan, Asset)
+- Real-time balance tracking
+- Account history dengan pagination
+- Multi-currency support
+- Balance validation
 
-### 5. **Kategori Dinamis**
-- **Kategori Sistem** default (8 kategori)
-- **Kategori Custom** dengan warna dan ikon
-- **Hierarchical Structure** (parent-child)
-- **Color-coded Organization** untuk visual clarity
+### Financial Calculators
+- **Mortgage Calculator** - Payment schedules
+- **Emergency Fund** - Recommendations
+- **Retirement Planning** - With inflation
+- **Custom Goals** - Flexible strategies
+- Save & manage results
+- Responsive result displays
 
-### 6. **Tujuan Tabungan**
-- **7 Jenis Tujuan**: Dana Darurat, Rumah, Kendaraan, Liburan, Pendidikan, Pensiun, Lainnya
-- **Progress Tracking** otomatis
-- **Contribution Management** dari berbagai sumber
-- **Target & Deadline** monitoring
-- **Visual Progress Indicators**
+### Reports & Analytics
+- Cashflow analysis
+- Budget vs actual comparison
+- Net worth tracking
+- Interactive charts
+- Export capabilities
 
-### 7. **Kalkulator Keuangan**
-- **Kalkulator KPR**: Cicilan dengan jadwal amortisasi
-- **Kalkulator Dana Darurat**: Rekomendasi berdasarkan pengeluaran
-- **Kalkulator Pensiun**: Perencanaan dengan inflasi
-- **Kalkulator Tujuan Custom**: Strategi pencapaian fleksibel
-- **Save & Manage Results**: Riwayat perhitungan
-- **Responsive Results Display**: Grid layout adaptif
+### UI/UX Features
+- Responsive design (mobile-first)
+- Loading states (skeleton, spinner)
+- Error boundaries
+- Toast notifications
+- Accessibility compliant
+- Filter expand/collapse functionality
 
-### 8. **Sistem Laporan**
-- **Cashflow Analysis**: Arus kas dengan trend
-- **Budget vs Actual**: Perbandingan anggaran
-- **Net Worth Tracking**: Pelacakan kekayaan bersih
-- **Interactive Charts**: Visualisasi data dinamis
-- **Export Capabilities**: Multiple format support
+## 🏗️ Architecture
 
-### 9. **Manajemen Tenant & User**
-- **Multi-tenant Architecture**: Isolasi data
-- **Role-based Access**: Pemilik, Admin, Editor, Pembaca
-- **User Invitation System**: Email-based invites
-- **Member Management**: CRUD operations
-- **Permission Control**: Granular access control
-
-### 10. **UI/UX Modern**
-- **Responsive Design**: Mobile-first approach
-- **Dark/Light Mode**: Theme switching (ready)
-- **Accessibility**: WCAG compliant components
-- **Loading States**: Skeleton dan spinner
-- **Error Handling**: User-friendly error messages
-- **Toast Notifications**: Real-time feedback
-
-## 🏗️ Arsitektur Aplikasi
-
-### Component Architecture
+### Component Structure
 ```
 App.tsx
 ├── AuthProvider (Context)
 ├── TenantProvider (Context)
-├── QueryClientProvider (React Query)
-├── Router (React Router)
-├── AuthLayout (Public routes)
+├── QueryClientProvider
+├── Router
+├── AuthLayout (Public)
 │   ├── LoginPage
 │   ├── RegisterPage
 │   └── AcceptInvitePage
-└── DashboardLayout (Protected routes)
-    ├── Header + Sidebar Navigation
+└── DashboardLayout (Protected)
+    ├── Header + Sidebar
     ├── DashboardPage
     ├── TransactionsPage
     ├── AccountsPage
@@ -205,29 +129,28 @@ App.tsx
 - **Persistent State**: localStorage
 
 ### API Integration
-- **Generated Client**: Type-safe API client dari Encore.dev
-- **Authentication**: JWT dengan auto-refresh
-- **Error Handling**: Centralized error management
-- **Request Interceptors**: Auto-retry dan token refresh
-- **Response Caching**: React Query caching strategy
+- Type-safe generated client dari Encore.dev
+- JWT authentication dengan auto-refresh
+- Centralized error handling
+- Request interceptors
+- Response caching
 
-## 🔧 Setup dan Instalasi
+## 🔧 Setup & Development
 
-### Prasyarat
-- **Node.js 18+** atau **Bun**
-- **Backend Finora** running di `http://localhost:4000`
+### Prerequisites
+- Node.js 18+ atau Bun
+- Backend API running di `http://localhost:4000`
 
-### Instalasi
+### Installation
 ```bash
-# Clone repository
-git clone <repository-url>
-cd finora-backend-zh3i/frontend
-
-# Install dependencies dengan Bun (recommended)
+# Install dependencies
 bun install
 
-# Atau dengan npm
-npm install
+# Start development server
+bun run dev
+
+# Build for production
+bun run build
 ```
 
 ### Environment Variables
@@ -236,245 +159,108 @@ npm install
 VITE_CLIENT_TARGET=http://localhost:4000
 
 # .env.production
-VITE_CLIENT_TARGET=https://your-production-api.com
-```
-
-### Development
-```bash
-# Start development server
-bun run dev
-
-# Atau dengan npm
-npm run dev
-
-# Build untuk production
-bun run build
-
-# Preview production build
-bun run preview
+VITE_CLIENT_TARGET=https://your-api.com
 ```
 
 ## 📱 Responsive Design
 
-### Breakpoints (Tailwind CSS)
-- **Mobile**: `< 640px` (sm)
-- **Tablet**: `640px - 1024px` (md, lg)
-- **Desktop**: `> 1024px` (xl, 2xl)
+### Breakpoints
+- **Mobile**: `< 640px`
+- **Tablet**: `640px - 1024px`
+- **Desktop**: `> 1024px`
 
-### Layout Adaptations
-- **Mobile**: Single column, collapsible sidebar, bottom navigation
-- **Tablet**: Two column, sidebar overlay, optimized touch targets
-- **Desktop**: Multi-column, persistent sidebar, hover interactions
+### Adaptations
+- **Mobile**: Single column, hamburger menu, bottom nav
+- **Tablet**: Two column, sidebar overlay
+- **Desktop**: Multi-column, persistent sidebar
 
 ### Component Responsiveness
-- **Grid Layouts**: 1-4 columns based on screen size
-- **Navigation**: Hamburger menu on mobile, full sidebar on desktop
-- **Forms**: Stacked on mobile, inline on desktop
-- **Tables**: Horizontal scroll on mobile, full view on desktop
+- Grid layouts: 1-4 columns based on screen size
+- Navigation: Collapsible sidebar
+- Forms: Stacked on mobile, inline on desktop
+- Tables: Horizontal scroll on mobile
 
 ## 🎨 Design System
 
-### Color Palette
-```css
-/* Primary Colors */
---primary: #3b82f6;      /* Blue */
---primary-foreground: #ffffff;
-
-/* Secondary Colors */
---secondary: #f1f5f9;    /* Light Gray */
---secondary-foreground: #0f172a;
-
-/* Accent Colors */
---accent: #10b981;       /* Green */
---destructive: #ef4444;  /* Red */
---warning: #f59e0b;      /* Amber */
-
-/* Neutral Colors */
---background: #ffffff;
---foreground: #0f172a;
---muted: #f8fafc;
---border: #e2e8f0;
-```
+### Colors
+- **Primary**: Blue (#3b82f6)
+- **Secondary**: Light Gray (#f1f5f9)
+- **Success**: Green (#10b981)
+- **Warning**: Amber (#f59e0b)
+- **Error**: Red (#ef4444)
 
 ### Typography
-- **Font Family**: Inter (system font fallback)
-- **Font Sizes**: 12px - 48px (Tailwind scale)
-- **Font Weights**: 400, 500, 600, 700
-- **Line Heights**: 1.2 - 1.8
+- **Font**: Inter (system fallback)
+- **Sizes**: 12px - 48px (Tailwind scale)
+- **Weights**: 400, 500, 600, 700
 
-### Spacing & Layout
-- **Spacing Scale**: 4px base unit (Tailwind)
-- **Container Max Width**: 1200px
-- **Grid System**: CSS Grid dan Flexbox
-- **Border Radius**: 4px, 8px, 12px
+### Components
+- Consistent spacing (4px base unit)
+- Border radius: 4px, 8px, 12px
+- Shadow system untuk depth
+- Color-coded categories dan accounts
 
-## 🔒 Keamanan
+## 🔒 Security
 
-### Authentication Security
-- **JWT Tokens**: Short-lived access tokens (15 min)
-- **Refresh Tokens**: Long-lived refresh tokens (30 days)
-- **Secure Storage**: httpOnly cookies untuk production
-- **Auto Logout**: Token expiry handling
-- **CSRF Protection**: Built-in dengan Encore.dev
+### Authentication
+- JWT tokens (15 min access, 30 day refresh)
+- Secure token storage
+- Auto logout on expiry
+- CSRF protection
 
 ### Data Protection
-- **Input Validation**: Client-side dan server-side
-- **XSS Prevention**: React built-in protection
-- **Type Safety**: TypeScript untuk runtime safety
-- **Error Boundaries**: Graceful error handling
+- Input validation
+- XSS prevention (React built-in)
+- Type safety (TypeScript)
+- Error boundaries
 
-### Privacy
-- **Local Storage**: Minimal sensitive data storage
-- **Session Management**: Secure session handling
-- **Data Encryption**: HTTPS untuk semua komunikasi
+## 📊 Performance
 
-## 📊 Performance Optimizations
+### Optimizations
+- Route-based code splitting
+- Component lazy loading
+- React Query caching
+- Image optimization
+- Bundle analysis
 
-### Code Splitting
-- **Route-based Splitting**: Lazy loading pages
-- **Component Splitting**: Dynamic imports
-- **Bundle Analysis**: Webpack bundle analyzer
-
-### Caching Strategy
-- **React Query**: Server state caching
-- **Browser Cache**: Static assets caching
-- **Service Worker**: Offline capability (ready)
-
-### Loading Performance
-- **Skeleton Loading**: UI placeholders
-- **Progressive Loading**: Incremental data loading
-- **Image Optimization**: Lazy loading dan compression
-- **Code Minification**: Production builds
-
-## 🧪 Testing Strategy
-
-### Testing Tools (Ready for Implementation)
-- **Unit Tests**: Jest + React Testing Library
-- **Integration Tests**: Cypress atau Playwright
-- **Component Tests**: Storybook
-- **E2E Tests**: Full user journey testing
-
-### Test Coverage Areas
-- **Authentication Flow**: Login, register, logout
-- **CRUD Operations**: Create, read, update, delete
-- **Form Validation**: Input validation dan error handling
-- **Navigation**: Route protection dan navigation
-- **API Integration**: Mock API responses
+### Loading States
+- Skeleton loading
+- Progressive data loading
+- Optimistic updates
+- Error retry mechanisms
 
 ## 🚀 Deployment
 
 ### Build Process
 ```bash
-# Production build
 bun run build
-
-# Output directory: dist/
-# Static files ready for deployment
+# Output: dist/ folder ready for deployment
 ```
 
 ### Deployment Options
-- **Vercel**: Zero-config deployment
-- **Netlify**: Static site hosting
-- **AWS S3 + CloudFront**: Scalable hosting
-- **Docker**: Containerized deployment
-- **Encore.dev**: Integrated dengan backend
+- **Vercel** - Zero-config
+- **Netlify** - Static hosting
+- **AWS S3 + CloudFront** - Scalable
+- **Docker** - Containerized
+- **Encore.dev** - Integrated
 
-### Environment Configuration
-- **Development**: Local API server
-- **Staging**: Staging API environment
-- **Production**: Production API dengan CDN
-
-## 📈 Monitoring & Analytics
-
-### Error Tracking (Ready)
-- **Error Boundaries**: React error catching
-- **Console Logging**: Development debugging
-- **Sentry Integration**: Production error tracking
-- **User Feedback**: Error reporting system
-
-### Performance Monitoring
-- **Web Vitals**: Core performance metrics
-- **Bundle Size**: Build size monitoring
-- **Load Times**: Page load performance
-- **User Analytics**: Usage patterns
-
-## 🔄 Development Workflow
-
-### Git Workflow
-```bash
-# Feature development
-git checkout -b feature/new-feature
-git commit -m "feat: add new feature"
-git push origin feature/new-feature
-
-# Code review via Pull Request
-# Merge to main branch
-```
-
-### Code Standards
-- **TypeScript**: Strict mode enabled
-- **ESLint**: Code quality rules
-- **Prettier**: Code formatting
-- **Husky**: Pre-commit hooks
-- **Conventional Commits**: Commit message format
-
-### Component Development
-```typescript
-// Component template
-interface ComponentProps {
-  // Props definition
-}
-
-export function Component({ ...props }: ComponentProps) {
-  // Component logic
-  return (
-    // JSX template
-  );
-}
-```
-
-## 🔮 Roadmap & Future Enhancements
+## 🔮 Future Enhancements
 
 ### Planned Features
-- **PWA Support**: Offline functionality
-- **Dark Mode**: Complete theme system
-- **Mobile App**: React Native version
-- **Advanced Charts**: Interactive visualizations
-- **Real-time Updates**: WebSocket integration
-- **AI Insights**: Machine learning recommendations
+- PWA support (offline functionality)
+- Dark mode implementation
+- Mobile app (React Native)
+- Advanced charts (interactive)
+- Real-time updates (WebSocket)
+- AI insights
 
 ### Technical Improvements
-- **Micro-frontends**: Modular architecture
-- **GraphQL**: Advanced data fetching
-- **State Machines**: XState integration
-- **Testing**: Comprehensive test suite
-- **Documentation**: Storybook component docs
-
-### Performance Enhancements
-- **Virtual Scrolling**: Large list optimization
-- **Web Workers**: Background processing
-- **Streaming**: Server-side rendering
-- **Edge Computing**: CDN optimization
-
-## 📚 Resources & Documentation
-
-### Development Resources
-- **React Documentation**: https://react.dev
-- **TypeScript Handbook**: https://typescriptlang.org
-- **Tailwind CSS**: https://tailwindcss.com
-- **Radix UI**: https://radix-ui.com
-- **TanStack Query**: https://tanstack.com/query
-
-### Project Documentation
-- **API Documentation**: Backend README.md
-- **Component Library**: Storybook (planned)
-- **Style Guide**: Design system documentation
-- **Deployment Guide**: Infrastructure setup
+- Comprehensive testing suite
+- Storybook component docs
+- Performance monitoring
+- Error tracking (Sentry)
+- Analytics integration
 
 ---
 
-**Dibangun dengan ❤️ menggunakan React, TypeScript, dan Tailwind CSS**
-
-**Frontend Version**: 1.0.0  
-**Last Updated**: 2024  
-**Maintainer**: Finora Development Team
+**Built with ❤️ using React, TypeScript, and Tailwind CSS**
