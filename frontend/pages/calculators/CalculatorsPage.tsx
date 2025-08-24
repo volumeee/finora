@@ -1299,12 +1299,12 @@ export default function CalculatorsPage() {
             </div>
           )}
 
-          {/* Similar simplified results for other calculators */}
+          {/* Emergency Fund Results */}
           {activeCalculator === "emergency" &&
             (result?.tabungan_bulanan_diperlukan ||
               result?.dana_darurat_minimum) && (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
                     <p className="text-xs text-blue-600 font-medium">
                       Tabungan Bulanan
@@ -1319,6 +1319,14 @@ export default function CalculatorsPage() {
                     </p>
                     <p className="text-lg font-bold text-green-800">
                       {formatCurrency(result.target_dana_darurat || 0)}
+                    </p>
+                  </div>
+                  <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
+                    <p className="text-xs text-purple-600 font-medium">
+                      Waktu Mencapai Target
+                    </p>
+                    <p className="text-lg font-bold text-purple-800">
+                      {result.waktu_mencapai_target || result.bulan_untuk_mencapai || 'N/A'} bulan
                     </p>
                   </div>
                 </div>
@@ -1383,7 +1391,7 @@ export default function CalculatorsPage() {
           {activeCalculator === "retirement" &&
             result?.tabungan_bulanan_diperlukan && (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
                     <p className="text-xs text-blue-600 font-medium">
                       Tabungan Bulanan
@@ -1398,6 +1406,22 @@ export default function CalculatorsPage() {
                     </p>
                     <p className="text-lg font-bold text-green-800">
                       {formatCurrency(result.total_dana_pensiun_dibutuhkan || 0)}
+                    </p>
+                  </div>
+                  <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
+                    <p className="text-xs text-orange-600 font-medium">
+                      Tahun Menabung
+                    </p>
+                    <p className="text-lg font-bold text-orange-800">
+                      {result.tahun_menabung || (retirementData.usia_pensiun - retirementData.usia_sekarang)} tahun
+                    </p>
+                  </div>
+                  <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
+                    <p className="text-xs text-purple-600 font-medium">
+                      Passive Income
+                    </p>
+                    <p className="text-lg font-bold text-purple-800">
+                      {formatCurrency(result.passive_income_bulanan || retirementData.target_passive_income_bulanan)}
                     </p>
                   </div>
                 </div>
@@ -1462,7 +1486,7 @@ export default function CalculatorsPage() {
           {activeCalculator === "custom" &&
             result?.kontribusi_bulanan_dibutuhkan && (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
                     <p className="text-xs text-blue-600 font-medium">
                       Kontribusi Bulanan
@@ -1476,7 +1500,15 @@ export default function CalculatorsPage() {
                       Target Nominal
                     </p>
                     <p className="text-lg font-bold text-green-800">
-                      {formatCurrency(result.target_nominal || 0)}
+                      {formatCurrency(result.target_nominal || customGoalData.target_nominal)}
+                    </p>
+                  </div>
+                  <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
+                    <p className="text-xs text-orange-600 font-medium">
+                      Jangka Waktu
+                    </p>
+                    <p className="text-lg font-bold text-orange-800">
+                      {result.jangka_waktu_bulan || customGoalData.jangka_waktu_bulan} bulan
                     </p>
                   </div>
                 </div>

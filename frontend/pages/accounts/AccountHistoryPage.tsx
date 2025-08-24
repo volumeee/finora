@@ -23,6 +23,8 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import apiClient from "@/lib/api-client";
@@ -69,6 +71,7 @@ export default function AccountHistoryPage(): JSX.Element {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const itemsPerPage = 20;
 
   useEffect(() => {
@@ -246,11 +249,26 @@ export default function AccountHistoryPage(): JSX.Element {
         {/* Filter Section */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filter & Pencarian
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Filter & Pencarian
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+                className="h-8 w-8 p-0"
+              >
+                {isFilterExpanded ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
             </CardTitle>
           </CardHeader>
+          {isFilterExpanded && (
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
@@ -325,6 +343,7 @@ export default function AccountHistoryPage(): JSX.Element {
               </Button>
             </div>
           </CardContent>
+          )}
         </Card>
 
         <Card>
