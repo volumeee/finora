@@ -449,83 +449,83 @@ encore run
 
 ### Transfer Flow
 1. **Account-to-Account Transfer**:
-   - Creates paired transactions (keluar + masuk)
-   - Links via `transfer_antar_akun` table
-   - Updates both account balances
+   - Membuat transaksi berpasangan (keluar + masuk)
+   - Menghubungkan melalui tabel `transfer_antar_akun`
+   - Memperbarui saldo kedua akun
 
 2. **Account-to-Goal Transfer**:
-   - Creates outgoing transaction from account
-   - Creates incoming transaction to goal (virtual akun_id = tujuan_id)
-   - Creates `kontribusi_tujuan` record
-   - Updates account balance and goal progress
+   - Membuat transaksi keluar dari akun
+   - Membuat transaksi masuk ke tujuan (virtual akun_id = tujuan_id)
+   - Membuat record `kontribusi_tujuan`
+   - Memperbarui saldo akun dan progress tujuan
 
 3. **Direct Goal Contribution**:
-   - Creates transaction record
-   - Creates `kontribusi_tujuan` record with akun_id
-   - Updates account balance and goal progress
+   - Membuat record transaksi
+   - Membuat record `kontribusi_tujuan` dengan akun_id
+   - Memperbarui saldo akun dan progress tujuan
 
 ### Data Consistency
-- **Soft Delete**: All main entities use `dihapus_pada` timestamp
-- **Audit Trail**: All changes logged in `audit_log`
-- **Balance Sync**: Account balances updated via triggers and API calls
-- **Goal Progress**: Auto-calculated from `kontribusi_tujuan` records
+- **Soft Delete**: Semua entitas utama menggunakan timestamp `dihapus_pada`
+- **Audit Trail**: Semua perubahan dicatat dalam `audit_log`
+- **Balance Sync**: Saldo akun diperbarui melalui trigger dan API calls
+- **Goal Progress**: Dihitung otomatis dari record `kontribusi_tujuan`
 
 ## 🔄 Business Logic
 
 ### Transaction Flow
-1. Validation (amount, balance, required fields)
-2. Database transaction (atomic operations)
-3. Balance updates (automatic)
-4. Audit trail (complete history)
+1. Validasi (jumlah, saldo, field wajib)
+2. Transaksi database (operasi atomik)
+3. Pembaruan saldo (otomatis)
+4. Audit trail (riwayat lengkap)
 
 ### Transfer Logic
-- Paired transactions (outgoing + incoming)
-- Goal contributions handling
-- Virtual transactions untuk incomplete transfers
-- Referential integrity via transfer_antar_akun
+- Transaksi berpasangan (keluar + masuk)
+- Penanganan kontribusi tujuan
+- Transaksi virtual untuk transfer tidak lengkap
+- Integritas referensial melalui transfer_antar_akun
 
 ### Goal Contributions
-- Automatic progress calculation
-- Transaction linking untuk audit
-- Partial dan excess contribution support
-- Transfer system integration
+- Perhitungan progress otomatis
+- Penautan transaksi untuk audit
+- Dukungan kontribusi parsial dan berlebih
+- Integrasi sistem transfer
 
 ## 📈 Performance
 
 ### Database Optimization
-- Composite indexes pada frequently queried columns
-- Tenant-based partitioning
-- Optimized queries untuk listing/filtering
+- Indeks komposit pada kolom yang sering diquery
+- Partisi berbasis tenant
+- Query yang dioptimalkan untuk listing/filtering
 
 ### Caching Strategy
-- Service-level caching
-- Database connection pooling
-- Optimized SQL queries
+- Caching tingkat layanan
+- Connection pooling database
+- Query SQL yang dioptimalkan
 
 ### Scalability
-- Microservices architecture
-- Database-per-service pattern
-- Stateless service design
+- Arsitektur microservices
+- Pola database-per-service
+- Desain layanan stateless
 
 ## 🔮 Future Development
 
 ### Planned Features
-- OCR receipt processing
-- Recurring transactions
-- Budget management
-- Investment tracking
-- Mobile app support
-- ML-powered analytics
-- Open banking integration
+- Pemrosesan struk OCR
+- Transaksi berulang
+- Manajemen anggaran
+- Pelacakan investasi
+- Dukungan aplikasi mobile
+- Analitik bertenaga ML
+- Integrasi open banking
 
 ### Technical Improvements
-- Real-time updates (WebSocket)
-- Advanced caching (Redis)
-- File storage (S3)
-- Push notifications
-- Advanced rate limiting
-- Scheduled exports
+- Pembaruan real-time (WebSocket)
+- Caching lanjutan (Redis)
+- Penyimpanan file (S3)
+- Notifikasi push
+- Rate limiting lanjutan
+- Ekspor terjadwal
 
 ---
 
-**Built with ❤️ using Encore.dev framework**
+**Dibangun dengan ❤️ menggunakan framework Encore.dev**

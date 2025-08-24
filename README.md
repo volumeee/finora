@@ -11,22 +11,22 @@
 │                    FINORA PLATFORM                         │
 ├─────────────────────────────────────────────────────────────┤
 │  Frontend (React 19 + TypeScript)                          │
-│  ├── Web Application (SPA)                                 │
-│  ├── Responsive UI (Mobile-first)                          │
-│  ├── Real-time Dashboard                                   │
-│  └── Progressive Web App (PWA Ready)                       │
+│  ├── Aplikasi Web (SPA)                                    │
+│  ├── UI Responsif (Mobile-first)                           │
+│  ├── Dashboard Real-time                                   │
+│  └── Progressive Web App (Siap PWA)                        │
 ├─────────────────────────────────────────────────────────────┤
 │  Backend (Encore.dev Microservices)                        │
 │  ├── 11 Microservices                                      │
 │  ├── 62 API Endpoints                                      │
-│  ├── 7 PostgreSQL Databases                               │
-│  └── Auto-generated Type-safe Client                       │
+│  ├── 7 Database PostgreSQL                                 │
+│  └── Client Type-safe Otomatis                             │
 ├─────────────────────────────────────────────────────────────┤
 │  Infrastructure                                            │
 │  ├── PostgreSQL (Multi-database)                          │
-│  ├── JWT Authentication                                    │
-│  ├── Multi-tenant Architecture                            │
-│  └── Automatic Migrations                                  │
+│  ├── Autentikasi JWT                                       │
+│  ├── Arsitektur Multi-tenant                              │
+│  └── Migrasi Otomatis                                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -40,8 +40,8 @@
 - Manajemen transaksi dengan filtering advanced
 - Kalkulator keuangan responsif
 - Sistem laporan dengan visualisasi
-- Multi-tenant support dengan role-based UI
-- Progressive Web App capabilities
+- Dukungan multi-tenant dengan UI berbasis peran
+- Kemampuan Progressive Web App
 
 [📖 **Frontend Documentation**](./frontend/README.md)
 
@@ -50,11 +50,11 @@
 **Tech Stack**: Encore.dev, TypeScript, PostgreSQL  
 **Fitur**:
 - 11 microservices dengan 62 endpoints
-- Multi-tenant data isolation
-- JWT authentication dengan refresh tokens
-- Real-time balance tracking
-- Comprehensive audit logging
-- Auto-generated type-safe client
+- Isolasi data multi-tenant
+- Autentikasi JWT dengan refresh token
+- Pelacakan saldo real-time
+- Audit logging komprehensif
+- Client type-safe yang dibuat otomatis
 
 [📖 **Backend Documentation**](./backend/README.md)
 
@@ -63,13 +63,13 @@
 ### 💰 Manajemen Keuangan
 - **6 Jenis Akun**: Kas, Bank, E-Wallet, Kartu Kredit, Pinjaman, Aset
 - **3 Jenis Transaksi**: Pemasukan, Pengeluaran, Transfer
-- **Split Transactions**: Kategori multiple per transaksi
-- **Real-time Balance**: Update otomatis saldo akun
-- **Multi-currency**: Support mata uang multiple (default IDR)
+- **Split Transactions**: Kategori ganda per transaksi
+- **Real-time Balance**: Pembaruan otomatis saldo akun
+- **Multi-currency**: Dukungan mata uang ganda (default IDR)
 
 ### 🎯 Perencanaan Tujuan
 - **7 Jenis Tujuan**: Dana Darurat, Rumah, Kendaraan, Liburan, Pendidikan, Pensiun, Custom
-- **Progress Tracking**: Monitoring otomatis pencapaian
+- **Progress Tracking**: Pemantauan otomatis pencapaian
 - **Contribution Management**: Dari berbagai sumber akun
 - **Target & Deadline**: Perencanaan dengan tenggat waktu
 
@@ -85,14 +85,14 @@
 - **Cashflow Analysis**: Analisis arus kas dengan trend
 - **Budget vs Actual**: Perbandingan anggaran dan realisasi
 - **Net Worth Tracking**: Pelacakan kekayaan bersih
-- **Export Capabilities**: Multiple format (CSV, JSON)
+- **Export Capabilities**: Format ganda (CSV, JSON)
 
 ### 👥 Multi-tenant & User Management
 - **Tenant Isolation**: Data terpisah per organisasi
 - **4 Level Role**: Pemilik, Admin, Editor, Pembaca
 - **User Invitation**: Sistem undangan berbasis email
-- **Permission Control**: Kontrol akses granular
-- **Audit Trail**: Logging semua aktivitas pengguna
+- **Permission Control**: Kontrol akses terperinci
+- **Audit Trail**: Pencatatan semua aktivitas pengguna
 
 ## 🛠️ Setup & Installation
 
@@ -149,28 +149,28 @@ VITE_CLIENT_TARGET=http://localhost:4000
 - **4 Calculator Types** dengan hasil responsif
 
 ### Code Quality
-- **100% TypeScript** untuk type safety
-- **Generated API Client** untuk consistency
-- **Comprehensive Error Handling** di semua layer
+- **100% TypeScript** untuk keamanan tipe
+- **Generated API Client** untuk konsistensi
+- **Comprehensive Error Handling** di semua lapisan
 - **Audit Logging** untuk semua operasi
-- **Soft Delete Pattern** untuk data integrity
+- **Soft Delete Pattern** untuk integritas data
 
 ## 🔒 Keamanan & Performance
 
 ### Security Features
-- **JWT Authentication** dengan refresh token rotation
+- **JWT Authentication** dengan rotasi refresh token
 - **bcrypt Password Hashing** dengan salt
 - **Role-based Access Control** (RBAC)
-- **SQL Injection Prevention** via parameterized queries
-- **XSS Protection** built-in React
-- **CSRF Protection** via Encore.dev
+- **SQL Injection Prevention** melalui parameterized queries
+- **XSS Protection** bawaan React
+- **CSRF Protection** melalui Encore.dev
 
 ### Performance Optimizations
-- **Database Indexing** pada kolom frequently queried
-- **Connection Pooling** untuk database efficiency
+- **Database Indexing** pada kolom yang sering diquery
+- **Connection Pooling** untuk efisiensi database
 - **React Query Caching** untuk server state
-- **Code Splitting** untuk faster loading
-- **Lazy Loading** untuk components dan routes
+- **Code Splitting** untuk loading lebih cepat
+- **Lazy Loading** untuk komponen dan routes
 - **Bundle Optimization** dengan Vite
 
 ## 🚀 Deployment
@@ -195,10 +195,10 @@ cd frontend && bun run build
 ```
 
 ### Deployment Options
-- **Encore.dev Cloud** - Integrated backend deployment
-- **Vercel/Netlify** - Frontend static hosting
-- **AWS/GCP/Azure** - Full infrastructure
-- **Docker** - Containerized deployment
+- **Encore.dev Cloud** - Deployment backend terintegrasi
+- **Vercel/Netlify** - Hosting statis frontend
+- **AWS/GCP/Azure** - Infrastruktur lengkap
+- **Docker** - Deployment dalam kontainer
 
 ## 🔮 Roadmap & Future Development
 
@@ -248,29 +248,29 @@ cd frontend && bun run build
 
 ### Development Workflow
 1. Fork repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
+2. Buat feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit perubahan (`git commit -m 'Add amazing feature'`)
+4. Push ke branch (`git push origin feature/amazing-feature`)
+5. Buka Pull Request
 
 ### Code Standards
-- **TypeScript Strict Mode** enabled
-- **ESLint + Prettier** untuk code formatting
-- **Conventional Commits** untuk commit messages
-- **Comprehensive Testing** untuk new features
-- **Documentation Updates** untuk API changes
+- **TypeScript Strict Mode** diaktifkan
+- **ESLint + Prettier** untuk format kode
+- **Conventional Commits** untuk pesan commit
+- **Comprehensive Testing** untuk fitur baru
+- **Documentation Updates** untuk perubahan API
 
 ## 📄 License
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+Proyek ini dilisensikan di bawah **MIT License** - lihat file [LICENSE](LICENSE) untuk detail.
 
 ## 🙏 Acknowledgments
 
-- **Encore.dev Team** - Amazing backend framework
-- **React Team** - Incredible frontend library  
-- **Tailwind CSS** - Beautiful utility-first CSS
-- **Radix UI** - Accessible component primitives
-- **Open Source Community** - Inspiration dan tools
+- **Encore.dev Team** - Framework backend yang luar biasa
+- **React Team** - Library frontend yang menakjubkan  
+- **Tailwind CSS** - CSS utility-first yang indah
+- **Radix UI** - Primitif komponen yang dapat diakses
+- **Open Source Community** - Inspirasi dan tools
 
 ---
 

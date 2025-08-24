@@ -47,55 +47,55 @@ frontend/
 ## 🎯 Fitur Utama
 
 ### Authentication & Multi-tenant
-- JWT token management dengan auto-refresh
-- Multi-tenant support dengan tenant switching
-- Role-based access control
-- Protected routes
+- Manajemen token JWT dengan auto-refresh
+- Dukungan multi-tenant dengan perpindahan tenant
+- Kontrol akses berbasis peran
+- Route yang dilindungi
 
 ### Dashboard Interaktif
-- Real-time financial overview
-- Visual charts dan statistics
-- Recent transactions dengan transfer tracking
-- Goal progress indicators
-- Quick actions
+- Gambaran keuangan real-time
+- Grafik visual dan statistik
+- Transaksi terbaru dengan pelacakan transfer
+- Indikator progress tujuan
+- Aksi cepat
 
 ### Transaction Management
-- CRUD operations (Income, Expense, Transfer)
-- Advanced filtering dan search
-- Split categories
-- Account-to-account transfers
-- Goal contributions
-- Export capabilities (CSV/JSON)
+- Operasi CRUD (Pemasukan, Pengeluaran, Transfer)
+- Filtering dan pencarian lanjutan
+- Kategori terpisah
+- Transfer antar akun
+- Kontribusi tujuan
+- Kemampuan ekspor (CSV/JSON)
 
 ### Account Management
-- 6 account types (Cash, Bank, E-Wallet, Credit Card, Loan, Asset)
-- Real-time balance tracking
-- Account history dengan pagination
-- Multi-currency support
-- Balance validation
+- 6 jenis akun (Kas, Bank, E-Wallet, Kartu Kredit, Pinjaman, Aset)
+- Pelacakan saldo real-time
+- Riwayat akun dengan paginasi
+- Dukungan multi-mata uang
+- Validasi saldo
 
 ### Financial Calculators
-- **Mortgage Calculator** - Payment schedules
-- **Emergency Fund** - Recommendations
-- **Retirement Planning** - With inflation
-- **Custom Goals** - Flexible strategies
-- Save & manage results
-- Responsive result displays
+- **Mortgage Calculator** - Jadwal pembayaran
+- **Emergency Fund** - Rekomendasi
+- **Retirement Planning** - Dengan inflasi
+- **Custom Goals** - Strategi fleksibel
+- Simpan & kelola hasil
+- Tampilan hasil responsif
 
 ### Reports & Analytics
-- Cashflow analysis
-- Budget vs actual comparison
-- Net worth tracking
-- Interactive charts
-- Export capabilities
+- Analisis arus kas
+- Perbandingan anggaran vs aktual
+- Pelacakan kekayaan bersih
+- Grafik interaktif
+- Kemampuan ekspor
 
 ### UI/UX Features
-- Responsive design (mobile-first)
-- Loading states (skeleton, spinner)
+- Desain responsif (mobile-first)
+- Status loading (skeleton, spinner)
 - Error boundaries
-- Toast notifications
-- Accessibility compliant
-- Filter expand/collapse functionality
+- Notifikasi toast
+- Sesuai aksesibilitas
+- Fungsi expand/collapse filter
 
 ## 🏗️ Architecture
 
@@ -129,9 +129,9 @@ App.tsx
 - **Persistent State**: localStorage
 
 ### API Integration
-- Type-safe generated client dari Encore.dev
-- JWT authentication dengan auto-refresh
-- Centralized error handling
+- Client yang dibuat type-safe dari Encore.dev
+- Autentikasi JWT dengan auto-refresh
+- Penanganan error terpusat
 - Request interceptors
 - Response caching
 
@@ -139,7 +139,7 @@ App.tsx
 
 ### Prerequisites
 - Node.js 18+ atau Bun
-- Backend API running di `http://localhost:4000`
+- Backend API berjalan di `http://localhost:4000`
 
 ### Installation
 ```bash
@@ -170,15 +170,15 @@ VITE_CLIENT_TARGET=https://your-api.com
 - **Desktop**: `> 1024px`
 
 ### Adaptations
-- **Mobile**: Single column, hamburger menu, bottom nav
-- **Tablet**: Two column, sidebar overlay
-- **Desktop**: Multi-column, persistent sidebar
+- **Mobile**: Kolom tunggal, menu hamburger, navigasi bawah
+- **Tablet**: Dua kolom, overlay sidebar
+- **Desktop**: Multi-kolom, sidebar persisten
 
 ### Component Responsiveness
-- Grid layouts: 1-4 columns based on screen size
-- Navigation: Collapsible sidebar
-- Forms: Stacked on mobile, inline on desktop
-- Tables: Horizontal scroll on mobile
+- Layout grid: 1-4 kolom berdasarkan ukuran layar
+- Navigasi: Sidebar yang dapat dilipat
+- Form: Bertumpuk di mobile, inline di desktop
+- Tabel: Scroll horizontal di mobile
 
 ## 🎨 Design System
 
@@ -195,39 +195,39 @@ VITE_CLIENT_TARGET=https://your-api.com
 - **Weights**: 400, 500, 600, 700
 
 ### Components
-- Consistent spacing (4px base unit)
+- Spasi konsisten (unit dasar 4px)
 - Border radius: 4px, 8px, 12px
-- Shadow system untuk depth
-- Color-coded categories dan accounts
+- Sistem bayangan untuk kedalaman
+- Kategori dan akun berkode warna
 
 ## 🔒 Security
 
 ### Authentication
-- JWT tokens (15 min access, 30 day refresh)
-- Secure token storage
-- Auto logout on expiry
-- CSRF protection
+- Token JWT (akses 15 menit, refresh 30 hari)
+- Penyimpanan token aman
+- Logout otomatis saat kedaluwarsa
+- Perlindungan CSRF
 
 ### Data Protection
-- Input validation
-- XSS prevention (React built-in)
-- Type safety (TypeScript)
+- Validasi input
+- Pencegahan XSS (bawaan React)
+- Keamanan tipe (TypeScript)
 - Error boundaries
 
 ## 📊 Performance
 
 ### Optimizations
-- Route-based code splitting
-- Component lazy loading
-- React Query caching
-- Image optimization
-- Bundle analysis
+- Code splitting berbasis route
+- Lazy loading komponen
+- Caching React Query
+- Optimisasi gambar
+- Analisis bundle
 
 ### Loading States
-- Skeleton loading
-- Progressive data loading
-- Optimistic updates
-- Error retry mechanisms
+- Loading skeleton
+- Loading data progresif
+- Update optimistik
+- Mekanisme retry error
 
 ## 🚀 Deployment
 
@@ -238,29 +238,29 @@ bun run build
 ```
 
 ### Deployment Options
-- **Vercel** - Zero-config
-- **Netlify** - Static hosting
-- **AWS S3 + CloudFront** - Scalable
-- **Docker** - Containerized
-- **Encore.dev** - Integrated
+- **Vercel** - Tanpa konfigurasi
+- **Netlify** - Hosting statis
+- **AWS S3 + CloudFront** - Dapat diskalakan
+- **Docker** - Dalam kontainer
+- **Encore.dev** - Terintegrasi
 
 ## 🔮 Future Enhancements
 
 ### Planned Features
-- PWA support (offline functionality)
-- Dark mode implementation
-- Mobile app (React Native)
-- Advanced charts (interactive)
-- Real-time updates (WebSocket)
-- AI insights
+- Dukungan PWA (fungsi offline)
+- Implementasi dark mode
+- Aplikasi mobile (React Native)
+- Grafik lanjutan (interaktif)
+- Pembaruan real-time (WebSocket)
+- Wawasan AI
 
 ### Technical Improvements
-- Comprehensive testing suite
-- Storybook component docs
-- Performance monitoring
-- Error tracking (Sentry)
-- Analytics integration
+- Suite testing komprehensif
+- Dokumentasi komponen Storybook
+- Pemantauan performa
+- Pelacakan error (Sentry)
+- Integrasi analitik
 
 ---
 
-**Built with ❤️ using React, TypeScript, and Tailwind CSS**
+**Dibangun dengan ❤️ menggunakan React, TypeScript, dan Tailwind CSS**
