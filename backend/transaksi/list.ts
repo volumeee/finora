@@ -145,57 +145,32 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
       });
     }
 
-    // Add missing paired transactions
+    // For transfers, only show the 'keluar' (outgoing) transaction to avoid duplicates
     let filteredRows = rows;
     
     if (transferIds.length > 0) {
-      const pairedIds = Array.from(transferMap.values()).map(info => info.pairedId).filter(Boolean);
-      const existingIds = new Set(rows.map(r => r.id));
-      const missingIds = pairedIds.filter(id => !existingIds.has(id));
+      // Filter out 'masuk' transactions that have a paired 'keluar' transaction
+      const transferPairs = new Set();
       
-      if (missingIds.length > 0) {
-        const missingTransactions = await transaksiDB.rawQueryAll<{
-          id: string;
-          tenant_id: string;
-          akun_id: string;
-          kategori_id: string;
-          jenis: string;
-          nominal: string;
-          mata_uang: string;
-          tanggal_transaksi: string;
-          catatan?: string;
-          pengguna_id: string;
-          transaksi_berulang_id?: string;
-          dibuat_pada: string;
-          diubah_pada: string;
-        }>(
-          `SELECT
-            id, tenant_id, akun_id, kategori_id, jenis,
-            nominal::text AS nominal, mata_uang,
-            tanggal_transaksi::text AS tanggal_transaksi,
-            catatan, pengguna_id, transaksi_berulang_id,
-            dibuat_pada, diubah_pada
-          FROM transaksi
-          WHERE id = ANY($1) AND tenant_id = $2 AND dihapus_pada IS NULL`,
-          missingIds, tenant_id
-        );
-        
-        filteredRows = [...rows, ...missingTransactions];
-        
-        // Update transfer map for missing transactions
-        missingTransactions.forEach(t => {
-          const existingTransfer = Array.from(transferMap.entries())
-            .find(([_, info]) => info.pairedId === t.id);
-          if (existingTransfer) {
-            const [originalId, info] = existingTransfer;
-            transferMap.set(t.id, {
-              transferId: info.transferId,
-              type: info.type === 'keluar' ? 'masuk' : 'keluar',
-              pairedId: originalId
-            });
+      rows.forEach(row => {
+        if (row.jenis === 'transfer') {
+          const transferInfo = transferMap.get(row.id);
+          if (transferInfo && transferInfo.type === 'keluar') {
+            transferPairs.add(transferInfo.transferId);
           }
-        });
-      }
+        }
+      });
+      
+      filteredRows = rows.filter(row => {
+        if (row.jenis === 'transfer') {
+          const transferInfo = transferMap.get(row.id);
+          if (transferInfo && transferInfo.type === 'masuk') {
+            // Only include 'masuk' if there's no corresponding 'keluar' in the results
+            return !transferPairs.has(transferInfo.transferId);
+          }
+        }
+        return true;
+      });
     }
 
     // Get paired account info for all transfers
@@ -290,13 +265,15 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
         const goalId = goalTransfers.get(r.id);
         
         if (transferInfo) {
-          // Regular transfer between accounts
+          // For 'keluar' transactions, show the destination account
+          // For 'masuk' transactions (when no 'keluar' pair exists), show the source account
+          const pairedAccountId = pairedAccounts.get(r.id);
           (transaction as any).transfer_info = {
             paired_transaction_id: transferInfo.pairedId,
             transfer_id: transferInfo.transferId,
             type: transferInfo.type,
-            paired_account_id: pairedAccounts.get(r.id),
-            paired_account_name: accountNames.get(pairedAccounts.get(r.id))
+            paired_account_id: pairedAccountId,
+            paired_account_name: accountNames.get(pairedAccountId)
           };
         } else if (goalId) {
           // Transfer to goal
@@ -341,43 +318,48 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
       }
     }
 
-    // count total
+    // count total (excluding duplicate transfer 'masuk' transactions)
     let countQuery = `
-      SELECT COUNT(*)::text AS count
-      FROM transaksi
-      WHERE tenant_id = $1 AND dihapus_pada IS NULL
+      SELECT COUNT(CASE 
+        WHEN t.jenis = 'transfer' THEN
+          CASE WHEN ta.transaksi_keluar_id = t.id THEN 1 ELSE 0 END
+        ELSE 1
+      END)::text AS count
+      FROM transaksi t
+      LEFT JOIN transfer_antar_akun ta ON (ta.transaksi_keluar_id = t.id OR ta.transaksi_masuk_id = t.id)
+      WHERE t.tenant_id = $1 AND t.dihapus_pada IS NULL
     `;
 
     const countParams: any[] = [tenant_id];
     let countParamIndex = 2;
 
     if (akun_id) {
-      countQuery += ` AND akun_id = $${countParamIndex++}`;
+      countQuery += ` AND t.akun_id = $${countParamIndex++}`;
       countParams.push(akun_id);
     }
 
     if (kategori_id) {
-      countQuery += ` AND kategori_id = $${countParamIndex++}`;
+      countQuery += ` AND t.kategori_id = $${countParamIndex++}`;
       countParams.push(kategori_id);
     }
 
     if (jenis) {
-      countQuery += ` AND jenis = $${countParamIndex++}`;
+      countQuery += ` AND t.jenis = $${countParamIndex++}`;
       countParams.push(jenis);
     }
 
     if (tanggal_dari) {
-      countQuery += ` AND tanggal_transaksi >= $${countParamIndex++}`;
+      countQuery += ` AND t.tanggal_transaksi >= $${countParamIndex++}`;
       countParams.push(tanggal_dari);
     }
 
     if (tanggal_sampai) {
-      countQuery += ` AND tanggal_transaksi <= $${countParamIndex++}`;
+      countQuery += ` AND t.tanggal_transaksi <= $${countParamIndex++}`;
       countParams.push(tanggal_sampai);
     }
 
     if (search) {
-      countQuery += ` AND (catatan ILIKE $${countParamIndex++} OR nominal::text ILIKE $${countParamIndex++})`;
+      countQuery += ` AND (t.catatan ILIKE $${countParamIndex++} OR t.nominal::text ILIKE $${countParamIndex++})`;
       countParams.push(`%${search}%`, `%${search}%`);
     }
 

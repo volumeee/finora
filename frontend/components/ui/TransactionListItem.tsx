@@ -96,7 +96,7 @@ export function TransactionListItem({
             </h3>
             <p className={`text-gray-600 truncate ${compact ? 'text-xs sm:text-sm' : 'text-sm'}`}>
               {transferInfo.paired_account_id ? 
-                `${currentAccountName} → ${pairedAccountName}` :
+                (isOut ? `${currentAccountName} → ${pairedAccountName}` : `${pairedAccountName} → ${currentAccountName}`) :
                 `${currentAccountName} → Tujuan Tabungan`
               } • {new Date(transaction.tanggal_transaksi).toLocaleDateString("id-ID")}
             </p>
