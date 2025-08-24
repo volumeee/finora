@@ -21,6 +21,7 @@ export interface DashboardStatsResponse {
     nominal: number;
     catatan?: string;
     tanggal_transaksi: string;
+    dibuat_pada: Date;
     akun_id: string;
     nama_akun?: string;
     nama_kategori?: string;
@@ -94,10 +95,11 @@ export const getStats = api<DashboardStatsRequest, DashboardStatsResponse>(
       nominal: string;
       catatan?: string;
       tanggal_transaksi: string;
+      dibuat_pada: Date;
       akun_id: string;
       kategori_id?: string;
     }>(
-      `SELECT id, jenis, nominal::text AS nominal, catatan, tanggal_transaksi::text AS tanggal_transaksi, akun_id, kategori_id
+      `SELECT id, jenis, nominal::text AS nominal, catatan, tanggal_transaksi::text AS tanggal_transaksi, dibuat_pada, akun_id, kategori_id
        FROM transaksi
        WHERE tenant_id = $1 AND dihapus_pada IS NULL
        ORDER BY tanggal_transaksi DESC, dibuat_pada DESC
@@ -184,6 +186,12 @@ export const getStats = api<DashboardStatsRequest, DashboardStatsResponse>(
         SELECT id, nama_akun FROM akun WHERE id = ANY(${allAccountIds}) AND dihapus_pada IS NULL
       `;
       accounts.forEach(a => accountNames.set(a.id, a.nama_akun));
+      
+      // Also check for goals
+      const goals = await tujuanDB.queryAll<{id: string, nama_tujuan: string}>`
+        SELECT id, nama_tujuan FROM tujuan_tabungan WHERE id = ANY(${allAccountIds}) AND dihapus_pada IS NULL
+      `;
+      goals.forEach(g => accountNames.set(g.id, `🎯 ${g.nama_tujuan}`));
     }
 
     const categoryNames = new Map();
@@ -202,6 +210,7 @@ export const getStats = api<DashboardStatsRequest, DashboardStatsResponse>(
         nominal: parseInt(t.nominal) / 100,
         catatan: t.catatan,
         tanggal_transaksi: t.tanggal_transaksi,
+        dibuat_pada: t.dibuat_pada,
         akun_id: t.akun_id,
         nama_akun: accountNames.get(t.akun_id),
         nama_kategori: categoryNames.get(t.kategori_id),

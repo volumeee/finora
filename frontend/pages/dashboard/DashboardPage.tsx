@@ -42,6 +42,7 @@ interface Transaction {
   jenis: "pemasukan" | "pengeluaran" | "transfer" | "income" | "expense";
   nominal: number;
   tanggal_transaksi: string;
+  dibuat_pada: string;
   catatan?: string;
   kategori_nama?: string;
   nama_kategori?: string;
@@ -358,23 +359,7 @@ export default function DashboardPage(): JSX.Element {
                 </div>
               ) : (
                 <div className="space-y-2 sm:space-y-3 max-h-80 overflow-y-auto">
-                  {recentTransactions
-                    .filter((transaction, index, arr) => {
-                      if (transaction.jenis === 'transfer') {
-                        const transferId = transaction.transfer_info?.transfer_id;
-                        if (transferId) {
-                          // For regular transfers, show only one per transfer_id
-                          return arr.findIndex(t => 
-                            t.jenis === 'transfer' && 
-                            t.transfer_info?.transfer_id === transferId
-                          ) === index;
-                        }
-                        // For goal transfers (no transfer_id), show all
-                        return true;
-                      }
-                      return true;
-                    })
-                    .map((transaction) => (
+                  {recentTransactions.map((transaction) => (
                       <TransactionListItem
                         key={transaction.id}
                         transaction={transaction}
