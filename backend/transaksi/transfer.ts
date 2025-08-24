@@ -41,8 +41,8 @@ export const createTransfer = api<CreateTransferRequest, Transfer>(
     const nominalCents = Math.round(req.nominal * 100);
 
     // Check source account exists and has sufficient balance
-    const sourceAccount = await akunDB.queryRow<{id: string, saldo_terkini: string}>`
-      SELECT id, saldo_terkini::text FROM akun 
+    const sourceAccount = await akunDB.queryRow<{id: string, nama_akun: string, saldo_terkini: string}>`
+      SELECT id, nama_akun, saldo_terkini::text FROM akun 
       WHERE id = ${req.akun_asal_id} AND tenant_id = ${req.tenant_id} AND dihapus_pada IS NULL
     `;
     
@@ -52,7 +52,9 @@ export const createTransfer = api<CreateTransferRequest, Transfer>(
     
     const currentBalance = parseInt(sourceAccount.saldo_terkini);
     if (currentBalance < nominalCents) {
-      throw new Error("Saldo tidak mencukupi untuk transfer ini");
+      const saldoTersedia = currentBalance / 100;
+      const nominalDiminta = req.nominal;
+      throw new Error(`Saldo tidak mencukupi. Saldo tersedia: Rp ${saldoTersedia.toLocaleString('id-ID')}, nominal yang diminta: Rp ${nominalDiminta.toLocaleString('id-ID')}`);
     }
 
     // Check destination account/goal exists

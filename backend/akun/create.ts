@@ -1,5 +1,8 @@
 import { api } from "encore.dev/api";
 import { akunDB } from "./db";
+import { SQLDatabase } from "encore.dev/storage/sqldb";
+
+const transaksiDB = SQLDatabase.named("transaksi");
 
 export type JenisAkun =
   | "kas"
@@ -16,6 +19,7 @@ export interface CreateAkunRequest {
   mata_uang?: string;
   saldo_awal?: number;
   keterangan?: string;
+  pengguna_id: string;
 }
 
 export interface Akun {
@@ -74,6 +78,19 @@ export const create = api<CreateAkunRequest, Akun>(
     `;
 
     if (!row) throw new Error("Failed to create account");
+
+    // Create initial balance entry in transaction history if saldo_awal > 0
+    if (saldo > 0) {
+      await transaksiDB.exec`
+        INSERT INTO transaksi (
+          tenant_id, akun_id, jenis, nominal, mata_uang, 
+          tanggal_transaksi, catatan, pengguna_id
+        ) VALUES (
+          ${req.tenant_id}, ${row.id}, 'pemasukan', ${saldo}, ${mataUang},
+          CURRENT_DATE, 'Saldo awal akun', ${req.pengguna_id}
+        )
+      `;
+    }
 
     // convert kembali ke normal (rupiah) sebelum return
     return {

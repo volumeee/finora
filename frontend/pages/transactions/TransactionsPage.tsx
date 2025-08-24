@@ -29,6 +29,11 @@ import {
   Plus,
   Edit,
   Trash2,
+  Search,
+  Filter,
+  Download,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -69,6 +74,9 @@ interface Account {
   id: string;
   nama_akun: string;
   jenis: string;
+  saldo_terkini?: number;
+  saldo_tersedia?: number;
+  status_saldo?: 'cukup' | 'rendah' | 'kosong';
 }
 
 interface Category {
@@ -138,13 +146,18 @@ export default function TransactionsPage(): JSX.Element {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<"transaction" | "transfer">("transaction");
-  const [filters] = useState<Filters>({
-    jenis: "",
-    akun_id: "",
-    kategori_id: "",
+  const [filters, setFilters] = useState<Filters>({
+    jenis: "all",
+    akun_id: "all",
+    kategori_id: "all",
     tanggal_dari: "",
     tanggal_sampai: "",
   });
+  const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalTransactions, setTotalTransactions] = useState(0);
+  const itemsPerPage = 20;
   const [error, setError] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean;
@@ -167,8 +180,16 @@ export default function TransactionsPage(): JSX.Element {
 
       const [transactionsRes, accountsRes, categoriesRes, goalsRes] = await Promise.all([
         apiClient.transaksi
-          .list({ tenant_id: currentTenant, ...filters })
-          .catch(() => ({ transactions: [] })),
+          .list({ 
+            tenant_id: currentTenant, 
+            ...Object.fromEntries(
+              Object.entries(filters).map(([k, v]) => [k, v === "all" ? "" : v])
+            ),
+            search: search || undefined,
+            limit: itemsPerPage,
+            offset: (currentPage - 1) * itemsPerPage
+          })
+          .catch(() => ({ transaksi: [], total: 0 })),
         apiClient.akun
           .list({ tenant_id: currentTenant })
           .catch(() => ({ akun: [] })),
@@ -181,6 +202,8 @@ export default function TransactionsPage(): JSX.Element {
       ]);
 
       setTransactions(transactionsRes.transaksi || []);
+      setTotalTransactions(transactionsRes.total || 0);
+      setTotalPages(Math.ceil((transactionsRes.total || 0) / itemsPerPage));
       const accountsData = accountsRes.akun || accountsRes.accounts || [];
       setAccounts(Array.isArray(accountsData) ? accountsData : []);
       setCategories(categoriesRes.kategori || []);
@@ -198,7 +221,7 @@ export default function TransactionsPage(): JSX.Element {
     } finally {
       setIsLoading(false);
     }
-  }, [currentTenant, filters, toast]);
+  }, [currentTenant, filters, search, currentPage, toast]);
 
   useEffect(() => {
     if (currentTenant) {
@@ -573,11 +596,30 @@ export default function TransactionsPage(): JSX.Element {
                         <SelectContent>
                           {accounts.map((account) => (
                             <SelectItem key={account.id} value={account.id}>
-                              {account.nama_akun}
+                              <div className="flex justify-between items-center w-full">
+                                <span>{account.nama_akun}</span>
+                                <span className="text-sm text-gray-600 ml-2">
+                                  {safeFormatCurrency(account.saldo_terkini || 0)}
+                                </span>
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      {transferData.akun_asal_id && (() => {
+                        const selectedAccount = accounts.find(a => a.id === transferData.akun_asal_id);
+                        if (selectedAccount) {
+                          return (
+                            <div className="text-sm p-2 bg-blue-50 rounded border">
+                              <span className="text-blue-700">Saldo tersedia: </span>
+                              <span className="font-medium text-blue-800">
+                                {safeFormatCurrency(selectedAccount.saldo_terkini || 0)}
+                              </span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
 
                     <div className="space-y-2">
@@ -619,6 +661,25 @@ export default function TransactionsPage(): JSX.Element {
                         required
                         maxLength={12}
                       />
+                      {transferData.akun_asal_id &&
+                        transferData.nominal > 0 &&
+                        (() => {
+                          const selectedAccount = accounts.find(
+                            (a) => a.id === transferData.akun_asal_id
+                          );
+                          if (
+                            selectedAccount &&
+                            (selectedAccount.saldo_terkini || 0) < transferData.nominal
+                          ) {
+                            return (
+                              <p className="text-xs text-red-500">
+                                Saldo tidak mencukupi. Saldo tersedia:{" "}
+                                {safeFormatCurrency(selectedAccount.saldo_terkini || 0)}
+                              </p>
+                            );
+                          }
+                          return null;
+                        })()}
                     </div>
 
                     <div className="space-y-2">
@@ -660,7 +721,21 @@ export default function TransactionsPage(): JSX.Element {
                       >
                         Batal
                       </ResponsiveDialogButton>
-                      <ResponsiveDialogButton type="submit" disabled={isSubmitting}>
+                      <ResponsiveDialogButton 
+                        type="submit" 
+                        disabled={
+                          isSubmitting ||
+                          !transferData.akun_asal_id ||
+                          !transferData.akun_tujuan_id ||
+                          transferData.nominal <= 0 ||
+                          (() => {
+                            const selectedAccount = accounts.find(
+                              (a) => a.id === transferData.akun_asal_id
+                            );
+                            return selectedAccount && (selectedAccount.saldo_terkini || 0) < transferData.nominal;
+                          })()
+                        }
+                      >
                         {isSubmitting ? (
                           <>
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
@@ -682,10 +757,127 @@ export default function TransactionsPage(): JSX.Element {
           </Button>
         </div>
 
+        {/* Filter Section */}
         <Card>
           <CardHeader>
-            <CardTitle>Daftar Transaksi</CardTitle>
-            <CardDescription>Semua transaksi dalam 30 hari terakhir</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Filter & Pencarian
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              <div className="space-y-2">
+                <Label>Pencarian</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Cari catatan atau nominal..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Jenis</Label>
+                <Select value={filters.jenis} onValueChange={(value) => setFilters(prev => ({ ...prev, jenis: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua jenis" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua jenis</SelectItem>
+                    <SelectItem value="pemasukan">Pemasukan</SelectItem>
+                    <SelectItem value="pengeluaran">Pengeluaran</SelectItem>
+                    <SelectItem value="transfer">Transfer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Akun</Label>
+                <Select value={filters.akun_id} onValueChange={(value) => setFilters(prev => ({ ...prev, akun_id: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua akun" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua akun</SelectItem>
+                    {accounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.nama_akun}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Kategori</Label>
+                <Select value={filters.kategori_id} onValueChange={(value) => setFilters(prev => ({ ...prev, kategori_id: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua kategori" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua kategori</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.nama_kategori}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Tanggal Dari</Label>
+                <Input
+                  type="date"
+                  value={filters.tanggal_dari}
+                  onChange={(e) => setFilters(prev => ({ ...prev, tanggal_dari: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Tanggal Sampai</Label>
+                <Input
+                  type="date"
+                  value={filters.tanggal_sampai}
+                  onChange={(e) => setFilters(prev => ({ ...prev, tanggal_sampai: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Export</Label>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const params = new URLSearchParams({
+                      tenant_id: currentTenant!,
+                      ...Object.fromEntries(
+                        Object.entries(filters).map(([k, v]) => [k, v === "all" ? "" : v]).filter(([_, v]) => v)
+                      ),
+                      format: 'csv'
+                    });
+                    // TODO: Implement export functionality
+                  console.log('Export not implemented yet');
+                  }}
+                  className="w-full"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>Daftar Transaksi</CardTitle>
+                <CardDescription>
+                  {totalTransactions} transaksi ditemukan
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -725,6 +917,52 @@ export default function TransactionsPage(): JSX.Element {
                       compact={false}
                     />
                   ))}
+              </div>
+            )}
+            
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                <div className="text-sm text-gray-600">
+                  Halaman {currentPage} dari {totalPages} ({totalTransactions} total transaksi)
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Sebelumnya
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      const page = currentPage <= 3 ? i + 1 : currentPage - 2 + i;
+                      if (page > totalPages) return null;
+                      return (
+                        <Button
+                          key={page}
+                          variant={page === currentPage ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(page)}
+                          className="w-8 h-8 p-0"
+                        >
+                          {page}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Selanjutnya
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>

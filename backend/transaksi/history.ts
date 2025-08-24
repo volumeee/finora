@@ -10,6 +10,10 @@ interface GetAccountHistoryParams {
   akun_id: string;
   limit?: Query<number>;
   offset?: Query<number>;
+  jenis?: Query<string>;
+  tanggal_dari?: Query<string>;
+  tanggal_sampai?: Query<string>;
+  search?: Query<string>;
 }
 
 interface AccountHistoryResponse {
@@ -37,7 +41,7 @@ interface AccountHistoryResponse {
 
 export const getAccountHistory = api<GetAccountHistoryParams, AccountHistoryResponse>(
   { expose: true, method: "GET", path: "/history/:akun_id" },
-  async ({ tenant_id, akun_id, limit = 50, offset = 0 }) => {
+  async ({ tenant_id, akun_id, limit = 50, offset = 0, jenis, tanggal_dari, tanggal_sampai, search }) => {
     // Get account info
     const account = await akunDB.queryRow<{
       id: string;
@@ -54,8 +58,36 @@ export const getAccountHistory = api<GetAccountHistoryParams, AccountHistoryResp
       throw new Error("Akun tidak ditemukan");
     }
 
-    // Get transactions for this account
-    const transactions = await transaksiDB.queryAll<{
+    // Build query with filters
+    let query = `
+      SELECT id, jenis, nominal::text, tanggal_transaksi::text, catatan, kategori_id, dibuat_pada
+      FROM transaksi
+      WHERE akun_id = $1 AND tenant_id = $2 AND dihapus_pada IS NULL
+    `;
+    const params: any[] = [akun_id, tenant_id];
+    let paramIndex = 3;
+
+    if (jenis) {
+      query += ` AND jenis = $${paramIndex++}`;
+      params.push(jenis);
+    }
+    if (tanggal_dari) {
+      query += ` AND tanggal_transaksi >= $${paramIndex++}`;
+      params.push(tanggal_dari);
+    }
+    if (tanggal_sampai) {
+      query += ` AND tanggal_transaksi <= $${paramIndex++}`;
+      params.push(tanggal_sampai);
+    }
+    if (search) {
+      query += ` AND (catatan ILIKE $${paramIndex++} OR nominal::text ILIKE $${paramIndex++})`;
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
+    query += ` ORDER BY tanggal_transaksi DESC, dibuat_pada DESC LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
+    params.push(limit, offset);
+
+    const transactions = await transaksiDB.rawQueryAll<{
       id: string;
       jenis: string;
       nominal: string;
@@ -63,13 +95,7 @@ export const getAccountHistory = api<GetAccountHistoryParams, AccountHistoryResp
       catatan?: string;
       kategori_id?: string;
       dibuat_pada: string;
-    }>`
-      SELECT id, jenis, nominal::text, tanggal_transaksi::text, catatan, kategori_id, dibuat_pada
-      FROM transaksi
-      WHERE akun_id = ${akun_id} AND tenant_id = ${tenant_id} AND dihapus_pada IS NULL
-      ORDER BY tanggal_transaksi DESC, dibuat_pada DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `;
+    }>(query, ...params);
 
     // Get transfer info
     const transferIds = transactions.filter(t => t.jenis === 'transfer').map(t => t.id);
@@ -165,47 +191,34 @@ export const getAccountHistory = api<GetAccountHistoryParams, AccountHistoryResp
       categories.forEach(c => categoryNames.set(c.id, c.nama_kategori));
     }
 
-    // Calculate running balance (simulate bank statement)
-    let runningBalance = parseInt(account.saldo_terkini);
+    // Calculate running balance correctly
     const formattedTransactions = transactions.map(t => {
       const nominal = parseInt(t.nominal) / 100;
-      const isCredit = t.jenis === 'pemasukan' || (t.jenis === 'transfer' && transferMap.get(t.id)?.type === 'masuk');
+      const transferInfo = transferMap.get(t.id);
+      const goalId = goalTransfers.get(t.id);
       
-      // For historical balance calculation, we need to reverse the effect
-      if (isCredit) {
-        runningBalance -= Math.round(nominal * 100);
-      } else {
-        runningBalance += Math.round(nominal * 100);
-      }
-
       const transaction: any = {
         id: t.id,
         jenis: t.jenis,
         nominal,
-        saldo_setelah: runningBalance / 100,
+        saldo_setelah: 0,
         tanggal_transaksi: t.tanggal_transaksi,
         catatan: t.catatan,
         nama_kategori: categoryNames.get(t.kategori_id)
       };
 
       if (t.jenis === 'transfer') {
-        const transferInfo = transferMap.get(t.id);
-        const goalId = goalTransfers.get(t.id);
-        
         if (transferInfo) {
-          // Regular transfer between accounts
           transaction.transfer_info = {
             type: transferInfo.type,
             paired_account_name: transferInfo.pairedAccountName
           };
         } else if (goalId) {
-          // Transfer to goal
           transaction.transfer_info = {
             type: 'keluar',
             paired_account_name: pairedAccountNames.get(goalId)
           };
         } else {
-          // Unknown transfer - likely to goal but not found in kontribusi_tujuan
           transaction.transfer_info = {
             type: 'keluar',
             paired_account_name: undefined
@@ -214,26 +227,51 @@ export const getAccountHistory = api<GetAccountHistoryParams, AccountHistoryResp
       }
 
       return transaction;
-    }).reverse(); // Reverse to show oldest first for balance calculation, then reverse back
-
-    // Recalculate with correct order
-    runningBalance = parseInt(account.saldo_terkini);
-    formattedTransactions.reverse().forEach(t => {
-      const isCredit = t.jenis === 'pemasukan' || (t.jenis === 'transfer' && t.transfer_info?.type === 'masuk');
-      if (!isCredit) {
-        runningBalance -= Math.round(t.nominal * 100);
-      } else {
-        runningBalance += Math.round(t.nominal * 100);
-      }
-      t.saldo_setelah = runningBalance / 100;
     });
 
-    // Get total count
-    const totalResult = await transaksiDB.queryRow<{count: string}>`
+    // Calculate saldo_setelah from newest to oldest
+    let currentBalance = parseInt(account.saldo_terkini);
+    formattedTransactions.forEach(t => {
+      const isCredit = t.jenis === 'pemasukan' || (t.jenis === 'transfer' && t.transfer_info?.type === 'masuk');
+      
+      // Set saldo after this transaction (before going to previous transaction)
+      t.saldo_setelah = currentBalance / 100;
+      
+      // Then subtract/add to get balance before this transaction
+      if (isCredit) {
+        currentBalance -= Math.round(t.nominal * 100);
+      } else {
+        currentBalance += Math.round(t.nominal * 100);
+      }
+    });
+
+    // Get total count with same filters
+    let countQuery = `
       SELECT COUNT(*)::text as count
       FROM transaksi
-      WHERE akun_id = ${akun_id} AND tenant_id = ${tenant_id} AND dihapus_pada IS NULL
+      WHERE akun_id = $1 AND tenant_id = $2 AND dihapus_pada IS NULL
     `;
+    const countParams: any[] = [akun_id, tenant_id];
+    let countParamIndex = 3;
+
+    if (jenis) {
+      countQuery += ` AND jenis = $${countParamIndex++}`;
+      countParams.push(jenis);
+    }
+    if (tanggal_dari) {
+      countQuery += ` AND tanggal_transaksi >= $${countParamIndex++}`;
+      countParams.push(tanggal_dari);
+    }
+    if (tanggal_sampai) {
+      countQuery += ` AND tanggal_transaksi <= $${countParamIndex++}`;
+      countParams.push(tanggal_sampai);
+    }
+    if (search) {
+      countQuery += ` AND (catatan ILIKE $${countParamIndex++} OR nominal::text ILIKE $${countParamIndex++})`;
+      countParams.push(`%${search}%`, `%${search}%`);
+    }
+
+    const totalResult = await transaksiDB.rawQueryRow<{count: string}>(countQuery, ...countParams);
 
     return {
       akun: {

@@ -195,6 +195,47 @@ export default function CalculatorsPage() {
       setShowSaveDialog(false);
       setSaveName("");
       loadSavedCalculations(activeCalculator);
+      
+      // Reset form data after saving
+      switch (activeCalculator) {
+        case "kpr":
+          setKprData({
+            harga_properti: 0,
+            uang_muka: 0,
+            suku_bunga_tahunan: 0,
+            jangka_waktu_tahun: 0,
+            tipe_bunga: "fixed",
+          });
+          break;
+        case "emergency":
+          setEmergencyData({
+            pengeluaran_bulanan: 0,
+            jumlah_tanggungan: 0,
+            jenis_pekerjaan: "tetap",
+            jumlah_bulan: 6,
+          });
+          break;
+        case "retirement":
+          setRetirementData({
+            usia_sekarang: 0,
+            usia_pensiun: 0,
+            pengeluaran_bulanan_sekarang: 0,
+            inflasi_tahunan: 0,
+            return_investasi_tahunan: 0,
+            target_passive_income_bulanan: 0,
+          });
+          break;
+        case "custom":
+          setCustomGoalData({
+            target_nominal: 0,
+            jangka_waktu_bulan: 0,
+            kontribusi_bulanan: 0,
+            return_investasi_tahunan: 0,
+            target_tanggal: "",
+          });
+          break;
+      }
+      setResult(null);
     } catch (error) {
       toast({
         title: "Gagal menyimpan perhitungan",
@@ -628,6 +669,36 @@ export default function CalculatorsPage() {
     setShowEditDialog(false);
     setEditingCalculation(null);
     setIsLoadedFromHistory(false);
+    
+    // Reset all form data
+    setKprData({
+      harga_properti: 0,
+      uang_muka: 0,
+      suku_bunga_tahunan: 0,
+      jangka_waktu_tahun: 0,
+      tipe_bunga: "fixed",
+    });
+    setEmergencyData({
+      pengeluaran_bulanan: 0,
+      jumlah_tanggungan: 0,
+      jenis_pekerjaan: "tetap",
+      jumlah_bulan: 6,
+    });
+    setRetirementData({
+      usia_sekarang: 0,
+      usia_pensiun: 0,
+      pengeluaran_bulanan_sekarang: 0,
+      inflasi_tahunan: 0,
+      return_investasi_tahunan: 0,
+      target_passive_income_bulanan: 0,
+    });
+    setCustomGoalData({
+      target_nominal: 0,
+      jangka_waktu_bulan: 0,
+      kontribusi_bulanan: 0,
+      return_investasi_tahunan: 0,
+      target_tanggal: "",
+    });
   }, []);
 
   const renderKPRForm = () => (
@@ -1500,8 +1571,8 @@ export default function CalculatorsPage() {
     if (!calculator) return null;
 
     return (
-      <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
-        <div className="max-w-7xl mx-auto space-y-4">
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <Button
               variant="outline"
@@ -1636,8 +1707,8 @@ export default function CalculatorsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
             Kalkulator Keuangan

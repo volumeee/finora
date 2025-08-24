@@ -993,6 +993,10 @@ export namespace transaksi {
       akun_id: string;
       limit?: number;
       offset?: number;
+      jenis?: string;
+      tanggal_dari?: string;
+      tanggal_sampai?: string;
+      search?: string;
     }): Promise<{
       akun: {
         id: string;
@@ -1020,6 +1024,10 @@ export namespace transaksi {
         tenant_id: params.tenant_id,
         limit: params.limit === undefined ? undefined : String(params.limit),
         offset: params.offset === undefined ? undefined : String(params.offset),
+        jenis: params.jenis,
+        tanggal_dari: params.tanggal_dari,
+        tanggal_sampai: params.tanggal_sampai,
+        search: params.search,
       });
 
       // Now make the actual call to the API

@@ -15,6 +15,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Plus, Edit, Trash2, Wallet, CreditCard, PiggyBank, History } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTenant } from '@/contexts/TenantContext';
+import { useAuth } from '@/contexts/AuthContext';
 import apiClient from '@/lib/api-client';
 import { CardSkeleton } from '@/components/ui/skeletons';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -87,6 +88,7 @@ export default function AccountsPage(): JSX.Element {
   const [formData, setFormData] = useState<AccountFormData>(INITIAL_FORM_DATA);
 
   const { currentTenant } = useTenant();
+  const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -143,6 +145,7 @@ export default function AccountsPage(): JSX.Element {
       } else {
         await apiClient.akun.create({
           tenant_id: currentTenant,
+          pengguna_id: user?.id || currentTenant,
           ...submitData
         });
         toast({
@@ -285,10 +288,10 @@ export default function AccountsPage(): JSX.Element {
               <CurrencyInput
                 value={formData.saldo_awal}
                 onChange={(value) => setFormData(prev => ({ ...prev, saldo_awal: value }))}
-                placeholder="Masukkan saldo awal"
-                required
+                placeholder="Masukkan saldo awal (boleh 0)"
                 maxLength={12}
               />
+              <p className="text-xs text-gray-500">Kosongkan atau isi 0 jika tidak ada saldo awal</p>
             </div>
 
             <div className="space-y-2">

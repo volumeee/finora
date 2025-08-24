@@ -13,6 +13,7 @@ interface ListTransaksiParams {
   jenis?: Query<string>;
   tanggal_dari?: Query<string>;
   tanggal_sampai?: Query<string>;
+  search?: Query<string>;
   limit?: Query<number>;
   offset?: Query<number>;
 }
@@ -45,6 +46,7 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
     jenis,
     tanggal_dari,
     tanggal_sampai,
+    search,
     limit = 50,
     offset = 0,
   }) => {
@@ -93,6 +95,11 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
     if (tanggal_sampai) {
       query += ` AND tanggal_transaksi <= $${paramIndex++}`;
       params.push(tanggal_sampai);
+    }
+
+    if (search) {
+      query += ` AND (catatan ILIKE $${paramIndex++} OR nominal::text ILIKE $${paramIndex++})`;
+      params.push(`%${search}%`, `%${search}%`);
     }
 
     // Get all transactions first, then handle pagination after including transfer pairs
@@ -367,6 +374,11 @@ export const list = api<ListTransaksiParams, ListTransaksiResponse>(
     if (tanggal_sampai) {
       countQuery += ` AND tanggal_transaksi <= $${countParamIndex++}`;
       countParams.push(tanggal_sampai);
+    }
+
+    if (search) {
+      countQuery += ` AND (catatan ILIKE $${countParamIndex++} OR nominal::text ILIKE $${countParamIndex++})`;
+      countParams.push(`%${search}%`, `%${search}%`);
     }
 
     const countRow = await transaksiDB.rawQueryRow<{ count: string }>(

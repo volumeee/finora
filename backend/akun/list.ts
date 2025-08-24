@@ -2,6 +2,7 @@ import { api } from "encore.dev/api";
 import { Query } from "encore.dev/api";
 import { akunDB } from "./db";
 import { Akun } from "./create";
+import { AkunWithBalance } from "./get";
 
 interface ListAkunParams {
   tenant_id: Query<string>;
@@ -11,7 +12,7 @@ interface ListAkunParams {
 }
 
 interface ListAkunResponse {
-  akun: Akun[];
+  akun: AkunWithBalance[];
   total: number;
 }
 
@@ -38,12 +39,29 @@ export const list = api<ListAkunParams, ListAkunResponse>(
 
     const rows = await akunDB.rawQueryAll<Akun>(query, ...params);
 
-    // convert saldo dari bigint → normal
-    const akun = rows.map((row) => ({
-      ...row,
-      saldo_awal: Number(row.saldo_awal) / 100,
-      saldo_terkini: Number(row.saldo_terkini) / 100,
-    }));
+    // convert saldo dari bigint → normal dan tambahkan info saldo
+    const akun = rows.map((row) => {
+      const saldo_awal = Number(row.saldo_awal) / 100;
+      const saldo_terkini = Number(row.saldo_terkini) / 100;
+      
+      // Determine balance status
+      let status_saldo: 'cukup' | 'rendah' | 'kosong';
+      if (saldo_terkini <= 0) {
+        status_saldo = 'kosong';
+      } else if (saldo_terkini < 100000) { // Less than 100k IDR
+        status_saldo = 'rendah';
+      } else {
+        status_saldo = 'cukup';
+      }
+      
+      return {
+        ...row,
+        saldo_awal,
+        saldo_terkini,
+        saldo_tersedia: saldo_terkini,
+        status_saldo,
+      };
+    });
 
     let countQuery = `
       SELECT COUNT(*) as count
