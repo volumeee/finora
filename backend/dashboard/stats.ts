@@ -202,8 +202,29 @@ export const getStats = api<DashboardStatsRequest, DashboardStatsResponse>(
       categories.forEach(c => categoryNames.set(c.id, c.nama_kategori));
     }
 
+    // Sort transactions to show 'masuk' before 'keluar' for transfers
+    const sortedTransactions = recentTransactions.sort((a, b) => {
+      // First sort by date/time (newest first)
+      const dateCompare = new Date(b.dibuat_pada).getTime() - new Date(a.dibuat_pada).getTime();
+      if (dateCompare !== 0) return dateCompare;
+      
+      // If same time and both are transfers, prioritize 'masuk' over 'keluar'
+      if (a.jenis === 'transfer' && b.jenis === 'transfer') {
+        const aTransfer = transferMap.get(a.id);
+        const bTransfer = transferMap.get(b.id);
+        
+        if (aTransfer && bTransfer && aTransfer.transferId === bTransfer.transferId) {
+          // Same transfer - show masuk first
+          if (aTransfer.type === 'masuk' && bTransfer.type === 'keluar') return -1;
+          if (aTransfer.type === 'keluar' && bTransfer.type === 'masuk') return 1;
+        }
+      }
+      
+      return 0;
+    });
+    
     // Format the response
-    const formattedTransactions = recentTransactions.slice(0, 5).map(t => {
+    const formattedTransactions = sortedTransactions.slice(0, 5).map(t => {
       const transaction: any = {
         id: t.id,
         jenis: t.jenis,
