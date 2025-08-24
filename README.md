@@ -699,4 +699,4 @@ encore run
 
 ---
 
-**Dibangun dengan ❤️ menggunakan framework Encore.dev**
+**Dibangun dengan ❤️ menggunakan framework Encore.dev**# finora
