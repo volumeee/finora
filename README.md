@@ -63,6 +63,10 @@
 ### 💰 Manajemen Keuangan
 - **6 Jenis Akun**: Kas, Bank, E-Wallet, Kartu Kredit, Pinjaman, Aset
 - **3 Jenis Transaksi**: Pemasukan, Pengeluaran, Transfer
+- **Logic Akun Utang**: Pinjaman & Kartu Kredit dengan validasi khusus
+  - ❌ Tidak bisa jadi sumber transfer atau kontribusi
+  - ✅ Bisa jadi tujuan transfer (pembayaran utang)
+  - ❌ Hanya bisa pengeluaran (menambah utang)
 - **Split Transactions**: Kategori ganda per transaksi
 - **Real-time Balance**: Pembaruan otomatis saldo akun
 - **Multi-currency**: Dukungan mata uang ganda (default IDR)
@@ -82,9 +86,10 @@
 
 ### 📊 Analisis & Laporan
 - **Dashboard Real-time**: Overview keuangan komprehensif
+- **Net Worth Calculation**: Aset dikurangi utang otomatis
 - **Cashflow Analysis**: Analisis arus kas dengan trend
 - **Budget vs Actual**: Perbandingan anggaran dan realisasi
-- **Net Worth Tracking**: Pelacakan kekayaan bersih
+- **Debt Tracking**: Pelacakan utang terpisah dari aset
 - **Export Capabilities**: Format ganda (CSV, JSON)
 
 ### 👥 Multi-tenant & User Management

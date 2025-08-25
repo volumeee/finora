@@ -284,14 +284,29 @@ export default function AccountsPage(): JSX.Element {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="saldo_awal">Saldo Awal</Label>
+              <Label htmlFor="saldo_awal">
+                {['pinjaman', 'kartu_kredit'].includes(formData.jenis) ? 'Jumlah Utang Awal' : 'Saldo Awal'}
+              </Label>
               <CurrencyInput
                 value={formData.saldo_awal}
                 onChange={(value) => setFormData(prev => ({ ...prev, saldo_awal: value }))}
-                placeholder="Masukkan saldo awal (boleh 0)"
+                placeholder={
+                  ['pinjaman', 'kartu_kredit'].includes(formData.jenis) 
+                    ? "Masukkan jumlah utang awal" 
+                    : "Masukkan saldo awal (boleh 0)"
+                }
                 maxLength={12}
               />
-              <p className="text-xs text-gray-500">Kosongkan atau isi 0 jika tidak ada saldo awal</p>
+              {['pinjaman', 'kartu_kredit'].includes(formData.jenis) ? (
+                <div className="text-xs p-2 bg-amber-50 rounded border border-amber-200">
+                  <p className="text-amber-700">
+                    💡 <strong>Akun Utang:</strong> Masukkan jumlah utang awal (akan disimpan sebagai saldo negatif). 
+                    Kosongkan jika belum ada utang.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">Kosongkan atau isi 0 jika tidak ada saldo awal</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -389,13 +404,41 @@ export default function AccountsPage(): JSX.Element {
                   </div>
                   <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3">
                     <div className="text-left sm:text-right min-w-0 flex-1 sm:flex-initial">
-                      <p className="font-medium text-sm sm:text-base truncate" title={safeFormatCurrency(account.saldo_terkini)}>
-                        {safeFormatCurrency(account.saldo_terkini)}
-                      </p>
-                      <p className="text-xs sm:text-sm text-gray-500">Saldo Terkini</p>
-                      <p className="text-xs text-gray-400 truncate" title={`Awal: ${safeFormatCurrency(account.saldo_awal)}`}>
-                        Awal: {safeFormatCurrency(account.saldo_awal)}
-                      </p>
+                      {(() => {
+                        const isDebt = ['pinjaman', 'kartu_kredit'].includes(account.jenis);
+                        const balance = account.saldo_terkini;
+                        const initialBalance = account.saldo_awal;
+                        
+                        if (isDebt) {
+                          return (
+                            <>
+                              <p className={`font-medium text-sm sm:text-base truncate ${
+                                balance < 0 ? 'text-red-600' : 'text-green-600'
+                              }`} title={balance < 0 ? safeFormatCurrency(Math.abs(balance)) : 'Lunas'}>
+                                {balance < 0 ? safeFormatCurrency(Math.abs(balance)) : 'Lunas'}
+                              </p>
+                              <p className="text-xs sm:text-sm text-gray-500">
+                                {balance < 0 ? 'Sisa Utang' : 'Status Utang'}
+                              </p>
+                              <p className="text-xs text-gray-400 truncate" title={`Awal: ${safeFormatCurrency(Math.abs(initialBalance))}`}>
+                                Awal: {safeFormatCurrency(Math.abs(initialBalance))}
+                              </p>
+                            </>
+                          );
+                        } else {
+                          return (
+                            <>
+                              <p className="font-medium text-sm sm:text-base truncate" title={safeFormatCurrency(balance)}>
+                                {safeFormatCurrency(balance)}
+                              </p>
+                              <p className="text-xs sm:text-sm text-gray-500">Saldo Terkini</p>
+                              <p className="text-xs text-gray-400 truncate" title={`Awal: ${safeFormatCurrency(initialBalance)}`}>
+                                Awal: {safeFormatCurrency(initialBalance)}
+                              </p>
+                            </>
+                          );
+                        }
+                      })()}
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
                       <Button

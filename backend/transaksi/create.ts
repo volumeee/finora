@@ -64,10 +64,18 @@ export const create = api<CreateTransaksiRequest, Transaksi>(
       throw new Error("Nominal melebihi batas maksimum");
     }
 
-    // For expense transactions, check if account has sufficient balance
-    if (req.jenis === "pengeluaran") {
-      const account = await getAkun({ id: req.akun_id });
-      
+    // Get account info for validation
+    const account = await getAkun({ id: req.akun_id });
+    
+    // Validate transaction type based on account type
+    const isDebtAccount = ['pinjaman', 'kartu_kredit'].includes(account.jenis);
+    
+    if (isDebtAccount && req.jenis === "pemasukan") {
+      throw new Error("Akun utang (pinjaman/kartu kredit) tidak bisa menerima pemasukan langsung. Gunakan transfer dari akun lain untuk pembayaran.");
+    }
+    
+    // For expense transactions on non-debt accounts, check if account has sufficient balance
+    if (req.jenis === "pengeluaran" && !isDebtAccount) {
       if (account.saldo_terkini < req.nominal) {
         throw new Error("Saldo tidak mencukupi untuk pengeluaran ini");
       }
@@ -111,6 +119,8 @@ export const create = api<CreateTransaksiRequest, Transaksi>(
       await tx.commit();
 
       // Update account balance via akun service after successful commit
+      const isDebtAccount = ['pinjaman', 'kartu_kredit'].includes(account.jenis);
+      
       if (transaksi.jenis === "pemasukan") {
         await updateBalance({
           akun_id: req.akun_id,
@@ -118,11 +128,21 @@ export const create = api<CreateTransaksiRequest, Transaksi>(
           operation: "add"
         });
       } else if (transaksi.jenis === "pengeluaran") {
-        await updateBalance({
-          akun_id: req.akun_id,
-          amount: nominalCents,
-          operation: "subtract"
-        });
+        if (isDebtAccount) {
+          // For debt accounts, expense increases debt (makes balance more negative)
+          await updateBalance({
+            akun_id: req.akun_id,
+            amount: nominalCents,
+            operation: "subtract"
+          });
+        } else {
+          // For normal accounts, expense decreases balance
+          await updateBalance({
+            akun_id: req.akun_id,
+            amount: nominalCents,
+            operation: "subtract"
+          });
+        }
       }
 
       // Convert back to normal numbers

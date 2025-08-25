@@ -53,6 +53,7 @@ frontend/
 - Route yang dilindungi
 
 ### Dashboard Interaktif
+- **Net Worth Display**: Kekayaan bersih (Aset - Utang)
 - Gambaran keuangan real-time
 - Grafik visual dan statistik
 - Transaksi terbaru dengan pelacakan transfer
@@ -69,6 +70,10 @@ frontend/
 
 ### Account Management
 - 6 jenis akun (Kas, Bank, E-Wallet, Kartu Kredit, Pinjaman, Aset)
+- **Debt Account Logic**: UI khusus untuk akun utang
+  - Tampilan sisa utang vs saldo normal
+  - Validasi transaksi berbeda per jenis akun
+  - Indikator visual untuk status utang
 - Pelacakan saldo real-time
 - Riwayat akun dengan paginasi
 - Dukungan multi-mata uang

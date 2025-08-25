@@ -611,7 +611,12 @@ export default function GoalsPage(): JSX.Element {
                   <SelectValue placeholder="Pilih akun untuk kontribusi" />
                 </SelectTrigger>
                 <SelectContent>
-                  {accounts.map((account) => {
+                  {accounts
+                    .filter((account) => {
+                      // Exclude debt accounts from contribution sources
+                      return !['pinjaman', 'kartu_kredit'].includes(account.jenis);
+                    })
+                    .map((account) => {
                     return (
                       <SelectItem key={account.id} value={account.id}>
                         <div className="flex justify-between items-center w-full">
@@ -627,6 +632,13 @@ export default function GoalsPage(): JSX.Element {
               </Select>
               {isLoadingAccounts && (
                 <p className="text-xs text-gray-500">Memuat akun...</p>
+              )}
+              {accounts.filter(a => ['pinjaman', 'kartu_kredit'].includes(a.jenis)).length > 0 && (
+                <div className="text-sm p-2 bg-amber-50 rounded border border-amber-200">
+                  <p className="text-amber-700">
+                    💡 <strong>Catatan:</strong> Akun utang (Pinjaman/Kartu Kredit) tidak bisa digunakan untuk kontribusi tujuan tabungan.
+                  </p>
+                </div>
               )}
             </div>
 

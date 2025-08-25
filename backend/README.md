@@ -429,6 +429,12 @@ encore run
 ### Financial Management
 - 6 jenis akun (Kas, Bank, E-Wallet, Kartu Kredit, Pinjaman, Aset)
 - 3 jenis transaksi (Pemasukan, Pengeluaran, Transfer)
+- **Debt Account Logic**: Pinjaman & Kartu Kredit dengan validasi khusus
+  - Saldo negatif = utang
+  - ❌ Tidak bisa jadi sumber transfer/kontribusi
+  - ✅ Bisa jadi tujuan transfer (pembayaran)
+  - ❌ Hanya bisa pengeluaran (menambah utang)
+  - ✅ Transfer masuk = pembayaran utang
 - Real-time balance tracking
 - Multi-currency support (default IDR)
 
@@ -436,6 +442,9 @@ encore run
 - Split transactions
 - Goal tracking dengan progress
 - Financial calculators (KPR, Dana Darurat, Pensiun, Custom)
+- **Net Worth Calculation**: Aset - Utang otomatis
+- **Debt Management**: Pelacakan utang terpisah dari aset
+- **Accurate Reporting**: Laporan mengecualikan transaksi akun utang dari cashflow
 - Comprehensive reporting
 - Data export capabilities
 

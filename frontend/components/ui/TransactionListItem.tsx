@@ -161,7 +161,11 @@ export function TransactionListItem({
         </div>
         <div className="flex-1 min-w-0">
           <h3 className={`font-medium text-gray-900 truncate ${compact ? 'text-sm sm:text-base' : ''}`}>
-            {transaction.catatan === 'Saldo awal akun' ? '💰 Saldo Awal Akun' : (transaction.nama_kategori || getCategoryName(transaction.kategori_id))}
+            {transaction.catatan?.includes('Saldo awal') ? (
+              transaction.catatan.includes('utang') ? '💳 Saldo Awal Utang' : '💰 Saldo Awal Akun'
+            ) : (
+              transaction.nama_kategori || getCategoryName(transaction.kategori_id)
+            )}
           </h3>
           <p className={`text-gray-600 truncate ${compact ? 'text-xs sm:text-sm' : 'text-sm'}`}>
             {isIncome ? 'Masuk ke' : isExpense ? 'Keluar dari' : ''} {transaction.nama_akun || getAccountName(transaction.akun_id)} • {new Date(transaction.dibuat_pada).toLocaleString("id-ID", {

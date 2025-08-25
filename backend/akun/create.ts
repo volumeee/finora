@@ -46,7 +46,13 @@ export const create = api<CreateAkunRequest, Akun>(
 
     const mataUang = req.mata_uang || "IDR";
     // simpan ke DB sebagai cents (BIGINT)
-    const saldo = Math.round((req.saldo_awal ?? 0) * 100);
+    let saldo = Math.round((req.saldo_awal ?? 0) * 100);
+    
+    // For debt accounts (pinjaman, kartu_kredit), initial balance should be negative (debt)
+    const isDebtAccount = ['pinjaman', 'kartu_kredit'].includes(req.jenis);
+    if (isDebtAccount && saldo > 0) {
+      saldo = -saldo; // Convert to negative (debt)
+    }
 
     const row = await akunDB.queryRow<{
       id: string;
@@ -79,15 +85,22 @@ export const create = api<CreateAkunRequest, Akun>(
 
     if (!row) throw new Error("Failed to create account");
 
-    // Create initial balance entry in transaction history if saldo_awal > 0
-    if (saldo > 0) {
+    // Create initial balance entry in transaction history if saldo_awal != 0
+    if (saldo !== 0) {
+      const isDebtAccount = ['pinjaman', 'kartu_kredit'].includes(req.jenis);
+      const transactionType = isDebtAccount ? 'pengeluaran' : 'pemasukan';
+      const transactionAmount = Math.abs(saldo); // Always positive for transaction record
+      const description = isDebtAccount 
+        ? `Saldo awal ${req.jenis} (utang)` 
+        : 'Saldo awal akun';
+      
       await transaksiDB.exec`
         INSERT INTO transaksi (
           tenant_id, akun_id, jenis, nominal, mata_uang, 
           tanggal_transaksi, catatan, pengguna_id
         ) VALUES (
-          ${req.tenant_id}, ${row.id}, 'pemasukan', ${saldo}, ${mataUang},
-          CURRENT_DATE, 'Saldo awal akun', ${req.pengguna_id}
+          ${req.tenant_id}, ${row.id}, ${transactionType}, ${transactionAmount}, ${mataUang},
+          CURRENT_DATE, ${description}, ${req.pengguna_id}
         )
       `;
     }

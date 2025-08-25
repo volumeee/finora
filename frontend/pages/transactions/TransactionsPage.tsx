@@ -398,6 +398,15 @@ export default function TransactionsPage(): JSX.Element {
   const filteredCategories = categories.filter((c) => {
     return !c.jenis || c.jenis === formData.jenis;
   });
+  
+  // Check if selected account is a debt account
+  const selectedAccount = accounts.find(a => a.id === formData.akun_id);
+  const isDebtAccount = selectedAccount && ['pinjaman', 'kartu_kredit'].includes(selectedAccount.jenis);
+  
+  // Filter transaction types based on account type
+  const allowedTransactionTypes = isDebtAccount 
+    ? ['pengeluaran'] // Debt accounts can only have expenses (increase debt)
+    : ['pemasukan', 'pengeluaran']; // Normal accounts can have both
 
   const handleDialogClose = (open: boolean): void => {
     setIsDialogOpen(open);
@@ -467,10 +476,22 @@ export default function TransactionsPage(): JSX.Element {
                           <SelectValue placeholder="Pilih jenis" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="pemasukan">Pemasukan</SelectItem>
-                          <SelectItem value="pengeluaran">Pengeluaran</SelectItem>
+                          {allowedTransactionTypes.includes('pemasukan') && (
+                            <SelectItem value="pemasukan">Pemasukan</SelectItem>
+                          )}
+                          <SelectItem value="pengeluaran">
+                            {isDebtAccount ? 'Pengeluaran (Menambah Utang)' : 'Pengeluaran'}
+                          </SelectItem>
                         </SelectContent>
                       </Select>
+                      {isDebtAccount && (
+                        <div className="text-sm p-2 bg-amber-50 rounded border border-amber-200">
+                          <p className="text-amber-700">
+                            💡 <strong>Akun Utang:</strong> Hanya bisa pengeluaran (menambah utang). 
+                            Untuk pembayaran utang, gunakan <strong>Transfer</strong> dari akun lain.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -495,11 +516,41 @@ export default function TransactionsPage(): JSX.Element {
                       {formData.akun_id && (() => {
                         const selectedAccount = accounts.find(a => a.id === formData.akun_id);
                         if (selectedAccount) {
+                          const isDebt = ['pinjaman', 'kartu_kredit'].includes(selectedAccount.jenis);
+                          const balance = selectedAccount.saldo_terkini || 0;
+                          
                           return (
-                            <div className="text-sm p-2 bg-blue-50 rounded border">
-                              <span className="text-blue-700">Saldo tersedia: </span>
-                              <span className="font-medium text-blue-800">
-                                {safeFormatCurrency(selectedAccount.saldo_terkini || 0)}
+                            <div className={`text-sm p-2 rounded border ${
+                              isDebt 
+                                ? balance < 0 
+                                  ? 'bg-red-50 border-red-200' 
+                                  : 'bg-green-50 border-green-200'
+                                : 'bg-blue-50 border-blue-200'
+                            }`}>
+                              <span className={isDebt 
+                                ? balance < 0 
+                                  ? 'text-red-700' 
+                                  : 'text-green-700'
+                                : 'text-blue-700'
+                              }>
+                                {isDebt 
+                                  ? balance < 0 
+                                    ? 'Sisa utang: ' 
+                                    : 'Utang lunas: '
+                                  : 'Saldo tersedia: '
+                                }
+                              </span>
+                              <span className={`font-medium ${
+                                isDebt 
+                                  ? balance < 0 
+                                    ? 'text-red-800' 
+                                    : 'text-green-800'
+                                  : 'text-blue-800'
+                              }`}>
+                                {isDebt && balance < 0 
+                                  ? safeFormatCurrency(Math.abs(balance))
+                                  : safeFormatCurrency(balance)
+                                }
                               </span>
                             </div>
                           );
@@ -547,16 +598,27 @@ export default function TransactionsPage(): JSX.Element {
                           const selectedAccount = accounts.find(
                             (a) => a.id === formData.akun_id
                           );
-                          if (
-                            selectedAccount &&
-                            (selectedAccount.saldo_terkini || 0) < formData.nominal
-                          ) {
-                            return (
-                              <p className="text-xs text-red-500">
-                                Saldo tidak mencukupi. Saldo tersedia:{" "}
-                                {safeFormatCurrency(selectedAccount.saldo_terkini || 0)}
-                              </p>
-                            );
+                          if (selectedAccount) {
+                            const isDebt = ['pinjaman', 'kartu_kredit'].includes(selectedAccount.jenis);
+                            
+                            if (!isDebt && (selectedAccount.saldo_terkini || 0) < formData.nominal) {
+                              return (
+                                <p className="text-xs text-red-500">
+                                  Saldo tidak mencukupi. Saldo tersedia:{" "}
+                                  {safeFormatCurrency(selectedAccount.saldo_terkini || 0)}
+                                </p>
+                              );
+                            }
+                            
+                            if (isDebt) {
+                              const currentDebt = Math.abs(selectedAccount.saldo_terkini || 0);
+                              const newDebt = currentDebt + formData.nominal;
+                              return (
+                                <p className="text-xs text-amber-600">
+                                  Utang akan bertambah menjadi: {safeFormatCurrency(newDebt)}
+                                </p>
+                              );
+                            }
                           }
                           return null;
                         })()}
@@ -612,7 +674,13 @@ export default function TransactionsPage(): JSX.Element {
                             const selectedAccount = accounts.find(
                               (a) => a.id === formData.akun_id
                             );
-                            return selectedAccount && (selectedAccount.saldo_terkini || 0) < formData.nominal;
+                            if (selectedAccount) {
+                              const isDebt = ['pinjaman', 'kartu_kredit'].includes(selectedAccount.jenis);
+                              // For debt accounts, always allow expenses (they increase debt)
+                              // For normal accounts, check balance
+                              return !isDebt && (selectedAccount.saldo_terkini || 0) < formData.nominal;
+                            }
+                            return false;
                           })())
                         }
                       >
@@ -645,7 +713,12 @@ export default function TransactionsPage(): JSX.Element {
                           <SelectValue placeholder="Pilih akun asal" />
                         </SelectTrigger>
                         <SelectContent>
-                          {accounts.map((account) => (
+                          {accounts
+                            .filter((account) => {
+                              // Exclude debt accounts as source (can't transfer FROM debt)
+                              return !['pinjaman', 'kartu_kredit'].includes(account.jenis);
+                            })
+                            .map((account) => (
                             <SelectItem key={account.id} value={account.id}>
                               <div className="flex justify-between items-center w-full">
                                 <span>{account.nama_akun}</span>
@@ -657,6 +730,13 @@ export default function TransactionsPage(): JSX.Element {
                           ))}
                         </SelectContent>
                       </Select>
+                      {accounts.filter(a => ['pinjaman', 'kartu_kredit'].includes(a.jenis)).length > 0 && (
+                        <div className="text-sm p-2 bg-amber-50 rounded border border-amber-200">
+                          <p className="text-amber-700">
+                            💡 <strong>Catatan:</strong> Akun utang (Pinjaman/Kartu Kredit) tidak bisa menjadi sumber transfer.
+                          </p>
+                        </div>
+                      )}
                       {transferData.akun_asal_id && (() => {
                         const selectedAccount = accounts.find(a => a.id === transferData.akun_asal_id);
                         if (selectedAccount) {
@@ -687,16 +767,38 @@ export default function TransactionsPage(): JSX.Element {
                         <SelectContent>
                           {accounts
                             .filter((a) => a.id !== transferData.akun_asal_id)
-                            .map((account) => (
-                              <SelectItem key={account.id} value={account.id}>
-                                {account.nama_akun}
+                            .map((account) => {
+                              const isDebt = ['pinjaman', 'kartu_kredit'].includes(account.jenis);
+                              const balance = account.saldo_terkini || 0;
+                              
+                              return (
+                                <SelectItem key={account.id} value={account.id}>
+                                  <div className="flex justify-between items-center w-full">
+                                    <span>{account.nama_akun}</span>
+                                    {isDebt && balance < 0 && (
+                                      <span className="text-xs text-red-600 ml-2">
+                                        (Utang: {safeFormatCurrency(Math.abs(balance))})
+                                      </span>
+                                    )}
+                                  </div>
+                                </SelectItem>
+                              );
+                            })}
+                          {(() => {
+                            // Only show goals if source is not a debt account
+                            const sourceAccount = accounts.find(a => a.id === transferData.akun_asal_id);
+                            const isSourceDebt = sourceAccount && ['pinjaman', 'kartu_kredit'].includes(sourceAccount.jenis);
+                            
+                            if (isSourceDebt) {
+                              return null; // Don't show goals for debt account sources
+                            }
+                            
+                            return goals.map((goal) => (
+                              <SelectItem key={goal.id} value={goal.id}>
+                                🎯 {goal.nama_tujuan}
                               </SelectItem>
-                            ))}
-                          {goals.map((goal) => (
-                            <SelectItem key={goal.id} value={goal.id}>
-                              🎯 {goal.nama_tujuan}
-                            </SelectItem>
-                          ))}
+                            ));
+                          })()}
                         </SelectContent>
                       </Select>
                     </div>
@@ -783,6 +885,7 @@ export default function TransactionsPage(): JSX.Element {
                             const selectedAccount = accounts.find(
                               (a) => a.id === transferData.akun_asal_id
                             );
+                            // Source account must have sufficient balance (debt accounts can't be source)
                             return selectedAccount && (selectedAccount.saldo_terkini || 0) < transferData.nominal;
                           })()
                         }

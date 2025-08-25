@@ -70,7 +70,7 @@ export const laporanNetWorth = api<LaporanNetWorthParams, LaporanNetWorthRespons
         saldo_terkini::text,
         CASE 
           WHEN jenis IN ('kas', 'bank', 'e_wallet', 'aset') THEN saldo_terkini::text
-          WHEN jenis IN ('kartu_kredit', 'pinjaman') THEN (-saldo_terkini)::text
+          WHEN jenis IN ('kartu_kredit', 'pinjaman') THEN saldo_terkini::text
           ELSE '0'
         END as kontribusi_net_worth
       FROM akun
@@ -91,9 +91,13 @@ export const laporanNetWorth = api<LaporanNetWorthParams, LaporanNetWorthRespons
       .filter(acc => ['kas', 'bank', 'e_wallet', 'aset'].includes(acc.jenis))
       .reduce((sum, acc) => sum + acc.saldo_terkini, 0);
     
+    // For debt accounts, negative balance = debt amount
     const totalLiabilitas = accounts
       .filter(acc => ['kartu_kredit', 'pinjaman'].includes(acc.jenis))
-      .reduce((sum, acc) => sum + Math.abs(acc.saldo_terkini), 0);
+      .reduce((sum, acc) => {
+        // If balance is negative, it's debt (liability)
+        return sum + (acc.saldo_terkini < 0 ? Math.abs(acc.saldo_terkini) : 0);
+      }, 0);
     
     // Add savings goals to assets
     const goalAssets = await tujuanDB.queryAll<{id: string, nama_tujuan: string, nominal_terkumpul: string}>`

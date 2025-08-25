@@ -44,13 +44,18 @@ export const createKontribusi = api<CreateKontribusiRequest, Kontribusi>(
     }
     
     // Validate account exists and has sufficient balance
-    const account = await akunDB.queryRow<{id: string, saldo_terkini: string, tenant_id: string}>`
-      SELECT id, saldo_terkini::text, tenant_id FROM akun 
+    const account = await akunDB.queryRow<{id: string, jenis: string, saldo_terkini: string, tenant_id: string}>`
+      SELECT id, jenis, saldo_terkini::text, tenant_id FROM akun 
       WHERE id = ${req.akun_id} AND dihapus_pada IS NULL
     `;
     
     if (!account) {
       throw new APIError(400, "Akun tidak ditemukan");
+    }
+    
+    // Validate account is not a debt account
+    if (['pinjaman', 'kartu_kredit'].includes(account.jenis)) {
+      throw new APIError(400, "Akun utang (pinjaman/kartu kredit) tidak bisa digunakan untuk kontribusi tujuan tabungan. Gunakan akun lain sebagai sumber dana.");
     }
     
     if (account.tenant_id !== goal.tenant_id) {

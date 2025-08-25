@@ -40,14 +40,19 @@ export const createTransfer = api<CreateTransferRequest, Transfer>(
     // Convert to cents for database
     const nominalCents = Math.round(req.nominal * 100);
 
-    // Check source account exists and has sufficient balance
-    const sourceAccount = await akunDB.queryRow<{id: string, nama_akun: string, saldo_terkini: string}>`
-      SELECT id, nama_akun, saldo_terkini::text FROM akun 
+    // Check source account exists and validate it's not a debt account
+    const sourceAccount = await akunDB.queryRow<{id: string, nama_akun: string, jenis: string, saldo_terkini: string}>`
+      SELECT id, nama_akun, jenis, saldo_terkini::text FROM akun 
       WHERE id = ${req.akun_asal_id} AND tenant_id = ${req.tenant_id} AND dihapus_pada IS NULL
     `;
     
     if (!sourceAccount) {
       throw new Error("Akun asal tidak ditemukan");
+    }
+    
+    // Validate source account is not a debt account
+    if (['pinjaman', 'kartu_kredit'].includes(sourceAccount.jenis)) {
+      throw new Error("Akun utang (pinjaman/kartu kredit) tidak bisa menjadi sumber transfer. Gunakan akun lain sebagai sumber dana.");
     }
     
     const currentBalance = parseInt(sourceAccount.saldo_terkini);
@@ -157,9 +162,23 @@ export const createTransfer = api<CreateTransferRequest, Transfer>(
         
         transfer = transferRecord;
 
+        // Get destination account info to check if it's a debt account
+        const destAccountInfo = await akunDB.queryRow<{jenis: string}>`
+          SELECT jenis FROM akun WHERE id = ${req.akun_tujuan_id}
+        `;
+        
+        const isDestDebtAccount = destAccountInfo && ['pinjaman', 'kartu_kredit'].includes(destAccountInfo.jenis);
+        
         // Update both account balances
         await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini - ${nominalCents} WHERE id = ${req.akun_asal_id}`;
-        await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini + ${nominalCents} WHERE id = ${req.akun_tujuan_id}`;
+        
+        if (isDestDebtAccount) {
+          // For debt accounts, incoming transfer reduces debt (increases balance towards zero)
+          await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini + ${nominalCents} WHERE id = ${req.akun_tujuan_id}`;
+        } else {
+          // For normal accounts, incoming transfer increases balance
+          await akunDB.exec`UPDATE akun SET saldo_terkini = saldo_terkini + ${nominalCents} WHERE id = ${req.akun_tujuan_id}`;
+        }
       }
 
       await tx.commit();

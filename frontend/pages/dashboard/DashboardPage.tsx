@@ -237,19 +237,21 @@ export default function DashboardPage(): JSX.Element {
           <Card className="overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 pt-4">
               <CardTitle className="text-xs sm:text-sm font-medium truncate pr-2">
-                Total Saldo
+                Kekayaan Bersih
               </CardTitle>
               <Wallet className="h-4 w-4 text-muted-foreground flex-shrink-0" />
             </CardHeader>
             <CardContent className="px-4 pb-4">
               <div
-                className="text-lg sm:text-xl lg:text-2xl font-bold truncate"
+                className={`text-lg sm:text-xl lg:text-2xl font-bold truncate ${
+                  stats.totalBalance >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}
                 title={safeFormatCurrency(stats.totalBalance)}
               >
                 {safeFormatCurrency(stats.totalBalance)}
               </div>
               <p className="text-xs text-muted-foreground truncate">
-                {stats.accountsCount} akun aktif
+                Aset - Utang ({stats.accountsCount} akun)
               </p>
             </CardContent>
           </Card>
